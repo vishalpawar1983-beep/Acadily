@@ -1,0 +1,444 @@
+diff -ru /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth/components/Login.tsx /tmp/frontend-build-extracted-src/app/modules/auth/components/Login.tsx
+--- /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth/components/Login.tsx	2026-03-17 14:41:56
++++ /tmp/frontend-build-extracted-src/app/modules/auth/components/Login.tsx	2026-03-17 14:45:41
+@@ -4,7 +4,7 @@
+ import clsx from 'clsx'
+ import {Link} from 'react-router-dom'
+ import {useFormik} from 'formik'
+-import {getUserByToken, login, verifyOTP, resendOTP} from '../core/_requests'
++import {getUserByToken, login} from '../core/_requests'
+ import {toAbsoluteUrl} from '../../../../_metronic/helpers'
+ import {useAuth} from '../core/Auth'
+ 
+@@ -20,21 +20,11 @@
+     .required('Password is required'),
+ })
+ 
+-const otpSchema = Yup.object().shape({
+-  otp: Yup.string()
+-    .length(6, 'OTP must be 6 digits')
+-    .required('OTP is required'),
+-})
+-
+ const initialValues = {
+   email: 'rahul@gmail.com',
+   password: '233124312423',
+ }
+ 
+-const otpInitialValues = {
+-  otp: '',
+-}
+-
+ /*
+   Formik+YUP+Typescript:
+   https://jaredpalmer.com/formik/docs/tutorial#getfieldprops
+@@ -43,203 +33,31 @@
+ 
+ export function Login() {
+   const [loading, setLoading] = useState(false)
+-  const [showOTPForm, setShowOTPForm] = useState(false)
+-  const [userEmail, setUserEmail] = useState('')
+-  const [otpError, setOtpError] = useState('')
+-  const [resendLoading, setResendLoading] = useState(false)
+-  const [resendSuccess, setResendSuccess] = useState('')
+   const {saveAuth, setCurrentUser} = useAuth()
+ 
+   const formik = useFormik({
+     initialValues,
+     validationSchema: loginSchema,
+     onSubmit: async (values, {setStatus, setSubmitting}) => {
++      // console.log(values);
+       setLoading(true)
+-      setOtpError('')
+       try {
+-        const {data} = await login(values.email, values.password)
+-        
+-        if (data.requiresOTP) {
+-          // OTP required, show OTP form
+-          setUserEmail(values.email)
+-          setShowOTPForm(true)
+-          setStatus('OTP sent to your email')
+-          setSubmitting(false)
+-        } else {
+-          // No OTP needed, login directly
+-          saveAuth(data)
+-          if (data.api_token) {
+-            const {data: user} = await getUserByToken(data.api_token!)
+-            setCurrentUser(user)
+-          }
+-        }
+-      } catch (error: any) {
+-        console.error(error)
+-        saveAuth(undefined)
+-        const errorMessage = error.response?.data?.message || 'The login details are incorrect'
+-        setStatus(errorMessage)
+-        setSubmitting(false)
+-      } finally {
+-        setLoading(false)
+-      }
+-    },
+-  })
++        const {data: auth} = await login(values.email, values.password)
++        // console.log(auth);
+ 
+-  const otpFormik = useFormik({
+-    initialValues: otpInitialValues,
+-    validationSchema: otpSchema,
+-    onSubmit: async (values, {setSubmitting}) => {
+-      setOtpError('')
+-      setLoading(true)
+-      try {
+-        const {data: auth} = await verifyOTP(userEmail, values.otp)
+-        
+-        // OTP verified, save auth and get user
+         saveAuth(auth)
+-        if (auth.api_token) {
+-          const {data: user} = await getUserByToken(auth.api_token!)
+-          setCurrentUser(user)
+-        }
+-        
+-        // Reset forms
+-        formik.resetForm()
+-        otpFormik.resetForm()
+-        setShowOTPForm(false)
+-      } catch (error: any) {
++        const {data: user} = await getUserByToken(auth.api_token)
++        setCurrentUser(user)
++      } catch (error) {
+         console.error(error)
+-        const errorMessage = error.response?.data?.message || 'Invalid OTP'
+-        setOtpError(errorMessage)
++        saveAuth(undefined)
++        setStatus('The login details are incorrect')
+         setSubmitting(false)
+-      } finally {
+         setLoading(false)
+       }
+     },
+   })
+ 
+-  const handleResendOTP = async () => {
+-    setResendLoading(true)
+-    setResendSuccess('')
+-    try {
+-      await resendOTP(userEmail)
+-      setResendSuccess('OTP resent successfully!')
+-      setTimeout(() => setResendSuccess(''), 3000)
+-    } catch (error: any) {
+-      const errorMessage = error.response?.data?.message || 'Failed to resend OTP'
+-      setOtpError(errorMessage)
+-    } finally {
+-      setResendLoading(false)
+-    }
+-  }
+-
+-  // Show OTP form if required
+-  if (showOTPForm) {
+-    return (
+-      <form
+-        className='form w-100'
+-        onSubmit={otpFormik.handleSubmit}
+-        noValidate
+-        id='kt_otp_form'
+-      >
+-        {/* begin::Heading */}
+-        <div className='text-center mb-11'>
+-          <h1 className='text-dark fw-bolder mb-3'>Verify OTP</h1>
+-          <div className='text-gray-500 fw-semibold fs-6'>
+-            Enter the OTP sent to {userEmail}
+-          </div>
+-        </div>
+-        {/* end::Heading */}
+-
+-        {otpError && (
+-          <div className='mb-lg-15 alert alert-danger'>
+-            <div className='alert-text font-weight-bold'>{otpError}</div>
+-          </div>
+-        )}
+-
+-        {resendSuccess && (
+-          <div className='mb-lg-15 alert alert-success'>
+-            <div className='alert-text font-weight-bold'>{resendSuccess}</div>
+-          </div>
+-        )}
+-
+-        {/* begin::Form group */}
+-        <div className='fv-row mb-8'>
+-          <label className='form-label fs-6 fw-bolder text-dark'>Enter OTP</label>
+-          <input
+-            placeholder='6-digit OTP'
+-            {...otpFormik.getFieldProps('otp')}
+-            className={clsx(
+-              'form-control bg-transparent',
+-              {'is-invalid': otpFormik.touched.otp && otpFormik.errors.otp},
+-              {
+-                'is-valid': otpFormik.touched.otp && !otpFormik.errors.otp,
+-              }
+-            )}
+-            type='text'
+-            name='otp'
+-            autoComplete='off'
+-            maxLength={6}
+-          />
+-          {otpFormik.touched.otp && otpFormik.errors.otp && (
+-            <div className='fv-plugins-message-container'>
+-              <span role='alert'>{otpFormik.errors.otp}</span>
+-            </div>
+-          )}
+-        </div>
+-        {/* end::Form group */}
+-
+-        {/* begin::Action */}
+-        <div className='d-grid mb-10'>
+-          <button
+-            type='submit'
+-            id='kt_verify_otp_submit'
+-            className='btn btn-primary'
+-            disabled={otpFormik.isSubmitting || !otpFormik.isValid}
+-          >
+-            {!loading && <span className='indicator-label'>Verify OTP</span>}
+-            {loading && (
+-              <span className='indicator-progress' style={{display: 'block'}}>
+-                Please wait...
+-                <span className='spinner-border spinner-border-sm align-middle ms-2'></span>
+-              </span>
+-            )}
+-          </button>
+-        </div>
+-        {/* end::Action */}
+-
+-        {/* begin::Resend OTP */}
+-        <div className='text-center'>
+-          <button
+-            type='button'
+-            className='btn btn-link'
+-            onClick={handleResendOTP}
+-            disabled={resendLoading}
+-          >
+-            {resendLoading ? 'Resending...' : 'Resend OTP'}
+-          </button>
+-        </div>
+-        {/* end::Resend OTP */}
+-
+-        {/* begin::Back to login */}
+-        <div className='text-center mt-5'>
+-          <button
+-            type='button'
+-            className='btn btn-link'
+-            onClick={() => {
+-              setShowOTPForm(false)
+-              formik.resetForm()
+-              otpFormik.resetForm()
+-              setUserEmail('')
+-            }}
+-          >
+-            Back to Login
+-          </button>
+-        </div>
+-        {/* end::Back to login */}
+-      </form>
+-    )
+-  }
+-
+-  // Show login form
+   return (
+     <form
+       className='form w-100'
+@@ -254,11 +72,59 @@
+       </div>
+       {/* begin::Heading */}
+ 
++      {/* begin::Login options */}
++      <div className='row g-3 mb-9'>
++        {/* begin::Col */}
++        <div className='col-md-6'>
++          {/* begin::Google link */}
++          {/* <a
++            href='#'
++            className='btn btn-flex btn-outline btn-text-gray-700 btn-active-color-primary bg-state-light flex-center text-nowrap w-100'
++          >
++            <img
++              alt='Logo'
++              src={toAbsoluteUrl('/media/svg/brand-logos/google-icon.svg')}
++              className='h-15px me-3'
++            />
++            Sign in with Google
++          </a> */}
++          {/* end::Google link */}
++        </div>
++        {/* end::Col */}
++
++        {/* begin::Col */}
++        <div className='col-md-6'>
++          {/* begin::Google link */}
++          {/* <a
++            href='#'
++            className='btn btn-flex btn-outline btn-text-gray-700 btn-active-color-primary bg-state-light flex-center text-nowrap w-100'
++          >
++            <img
++              alt='Logo'
++              src={toAbsoluteUrl('/media/svg/brand-logos/apple-black.svg')}
++              className='theme-light-show h-15px me-3'
++            />
++            <img
++              alt='Logo'
++              src={toAbsoluteUrl('/media/svg/brand-logos/apple-black-dark.svg')}
++              className='theme-dark-show h-15px me-3'
++            />
++            Sign in with Apple
++          </a> */}
++          {/* end::Google link */}
++        </div>
++        {/* end::Col */}
++      </div>
++      {/* end::Login options */}
++
++      {/* begin::Separator */}
++      {/* <div className='separator separator-content my-14'>
++        <span className='w-125px text-gray-500 fw-semibold fs-7'>Or with email</span>
++      </div> */}
++      {/* end::Separator */}
++
+       {formik.status && (
+-        <div className={clsx('mb-lg-15 alert', {
+-          'alert-danger': !formik.status.includes('sent'),
+-          'alert-info': formik.status.includes('sent'),
+-        })}>
++        <div className='mb-lg-15 alert alert-danger'>
+           <div className='alert-text font-weight-bold'>{formik.status}</div>
+         </div>
+       )}
+Only in /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth/components: ResetPassword.css
+diff -ru /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth/core/Auth.tsx /tmp/frontend-build-extracted-src/app/modules/auth/core/Auth.tsx
+--- /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth/core/Auth.tsx	2026-03-17 14:41:58
++++ /tmp/frontend-build-extracted-src/app/modules/auth/core/Auth.tsx	2026-03-17 14:45:41
+@@ -56,14 +56,6 @@
+     setCurrentUser(undefined)
+   }
+ 
+-  // Set up logout callback for axios interceptor
+-  useEffect(() => {
+-    authHelper.setLogoutCallback(logout)
+-    return () => {
+-      authHelper.setLogoutCallback(null as any)
+-    }
+-  }, [])
+-
+   return (
+     <AuthContext.Provider value={{auth, saveAuth, currentUser, setCurrentUser, logout}}>
+       {children}
+diff -ru /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth/core/AuthHelpers.ts /tmp/frontend-build-extracted-src/app/modules/auth/core/AuthHelpers.ts
+--- /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth/core/AuthHelpers.ts	2026-03-17 14:41:58
++++ /tmp/frontend-build-extracted-src/app/modules/auth/core/AuthHelpers.ts	2026-03-17 14:45:41
+@@ -1,15 +1,6 @@
+ import { AuthModel } from './_models'
+ 
+ const AUTH_LOCAL_STORAGE_KEY = 'kt-auth-react-v'
+-
+-const isTokenExpired = (auth: AuthModel): boolean => {
+-  if (!auth.expiresAt) {
+-    return false // No expiration time set
+-  }
+-  const currentTime = Date.now()
+-  return currentTime > auth.expiresAt
+-}
+-
+ const getAuth = (): AuthModel | undefined => {
+   if (!localStorage) {
+     return
+@@ -23,12 +14,7 @@
+   try {
+     const auth: AuthModel = JSON.parse(lsValue) as AuthModel
+     if (auth) {
+-      // Check if token has expired
+-      if (isTokenExpired(auth)) {
+-        console.warn('Token has expired, removing from storage')
+-        removeAuth()
+-        return undefined
+-      }
++      // You can easily check auth_token expiration also
+       return auth
+     }
+   } catch (error) {
+@@ -61,16 +47,8 @@
+   }
+ }
+ 
+-let logoutCallback: ((() => void) | null) = null
+-
+-const setLogoutCallback = (callback: ((() => void) | null)) => {
+-  logoutCallback = callback
+-}
+-
+ export function setupAxios(axios: any) {
+   axios.defaults.headers.Accept = 'application/json'
+-  
+-  // Request Interceptor - Add token to headers
+   axios.interceptors.request.use(
+     (config: { headers: { Authorization: string } }) => {
+       const auth = getAuth()
+@@ -81,28 +59,6 @@
+     },
+     (err: any) => Promise.reject(err)
+   )
+-
+-  // Response Interceptor - Handle expired token (401 Unauthorized)
+-  axios.interceptors.response.use(
+-    (response: any) => response,
+-    (error: any) => {
+-      if (error.response?.status === 401) {
+-        // Token expired or unauthorized - clear auth
+-        console.warn('Token expired or unauthorized (401), logging out...')
+-        removeAuth()
+-        
+-        // Call the logout callback if set, otherwise fallback to redirect
+-        if (logoutCallback) {
+-          logoutCallback()
+-        } else if (!window.location.pathname.includes('/auth')) {
+-          setTimeout(() => {
+-            window.location.href = '/auth/login'
+-          }, 100)
+-        }
+-      }
+-      return Promise.reject(error)
+-    }
+-  )
+ }
+ 
+-export { getAuth, setAuth, removeAuth, AUTH_LOCAL_STORAGE_KEY, isTokenExpired, setLogoutCallback }
++export { getAuth, setAuth, removeAuth, AUTH_LOCAL_STORAGE_KEY }
+Only in /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth/core: _models.ts
+diff -ru /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth/core/_requests.ts /tmp/frontend-build-extracted-src/app/modules/auth/core/_requests.ts
+--- /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth/core/_requests.ts	2026-03-17 14:41:58
++++ /tmp/frontend-build-extracted-src/app/modules/auth/core/_requests.ts	2026-03-17 14:45:41
+@@ -34,20 +34,6 @@
+   })
+ }
+ 
+-// Verify OTP and complete login
+-export function verifyOTP(email: string, otp: string) {
+-  return axios.post<AuthModel>(`${BASE_URL}/api/users/verify-otp`, {
+-    email,
+-    otp,
+-  })
+-}
+-
+-// Resend OTP
+-export function resendOTP(email: string) {
+-  return axios.post<{success: boolean; message: string}>(`${BASE_URL}/api/users/resend-otp`, {
+-    email,
+-  })
+-}
+ // Server should return object => { result: boolean } (Is Email in DB)
+ export function requestPassword(email: string) {
+   return axios.post<{result: boolean}>(`${BASE_URL}/api/users/requestPassword`, {
+@@ -60,8 +46,3 @@
+     api_token: token,
+   })
+ }
+-
+-
+-
+-
+-
+Only in /Users/aiinfox/Documents/Projects/Flex_Academy/Portal/_src_/ims-frontend-source/src/app/modules/auth: index.ts

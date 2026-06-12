@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- SEO: HIDDEN FROM SEARCH ENGINES (remove before public launch) -->
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+  <meta name="googlebot" content="noindex, nofollow" />
+  <meta name="bingbot" content="noindex, nofollow" />
+
+  <title>Acadily — Institute Management, Reimagined</title>
+  <meta name="description" content="The operating system for coaching centers, academies, and salons. One platform. Every branch. Zero duplication." />
+  <meta name="author" content="Aiinfox" />
+  <meta name="theme-color" content="#7c3aed" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Acadily — Institute Management, Reimagined" />
+  <meta property="og:description" content="The operating system for coaching centers, academies, and salons." />
+  <meta property="og:site_name" content="Acadily" />
+  <meta property="og:url" content="https://acadily.com" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Acadily — Institute Management, Reimagined" />
+  <meta name="twitter:description" content="The operating system for coaching centers, academies, and salons." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --primary: #7c3aed;
+      --primary-dark: #6d28d9;
+      --primary-light: #a78bfa;
+      --primary-softer: #ede9fe;
+      --accent: #ec4899;
+      --ink: #0f0718;
+      --ink-2: #1a1027;
+      --ink-3: #2d1b4e;
+      --text: #1e1b2e;
+      --text-muted: #6b6780;
+      --white: #ffffff;
+      --bg-soft: #faf9fc;
+      --border: #e9e7f2;
+      --gradient-hero: linear-gradient(180deg, #faf5ff 0%, #f3e8ff 35%, #e9d5ff 70%, #faf9fc 100%);
+      --gradient-purple: linear-gradient(135deg, #a78bfa 0%, #7c3aed 50%, #ec4899 100%);
+      --gradient-dark: linear-gradient(180deg, #1a1027 0%, #0f0718 100%);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: "Poppins", -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      font-weight: 400;
+      color: var(--text);
+      background: var(--white);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection { background: var(--primary); color: var(--white); }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+
+    /* ══════ Top bar ══════ */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 50;
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255,255,255,0.4);
+    }
+
+    .logo {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .topbar nav {
+      display: flex;
+      align-items: center;
+      gap: 36px;
+      font-size: 15px;
+      font-weight: 500;
+    }
+    .topbar nav a {
+      color: var(--text);
+      transition: color 0.2s;
+    }
+    .topbar nav a:hover { color: var(--primary); }
+
+    .nav-cta {
+      padding: 10px 22px;
+      background: var(--ink);
+      color: var(--white) !important;
+      border-radius: 100px;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+    .nav-cta:hover {
+      background: var(--primary);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 25px -10px var(--primary);
+    }
+
+    @media (max-width: 768px) {
+      .topbar { padding: 16px 20px; }
+      .topbar nav { gap: 14px; }
+      .topbar nav a:not(.nav-cta) { display: none; }
+    }
+
+    /* ══════ Section base ══════ */
+    section { position: relative; }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 40px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      padding: 8px 18px;
+      background: var(--primary-softer);
+      color: var(--primary-dark);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border-radius: 100px;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow-dark {
+      background: rgba(167,139,250,0.15);
+      color: var(--primary-light);
+    }
+
+    h1, h2, h3, h4 {
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+    }
+
+    /* ══════ Hero (Split + Slider) ══════ */
+    .hero {
+      padding: 120px 40px 100px;
+      background: var(--gradient-hero);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      top: -10%; right: -10%;
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(167,139,250,0.5) 0%, transparent 55%);
+      pointer-events: none;
+      filter: blur(80px);
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      bottom: -20%; left: -10%;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(236,72,153,0.25) 0%, transparent 60%);
+      pointer-events: none;
+      filter: blur(80px);
+    }
+
+    .hero-inner {
+      max-width: 1320px;
+      margin: 0 auto;
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 60px;
+      align-items: center;
+    }
+
+    @media (min-width: 1024px) {
+      .hero-inner {
+        grid-template-columns: 1.15fr 1fr;
+        gap: 80px;
+        padding-top: 40px;
+      }
+    }
+
+    .hero-left { max-width: 720px; }
+
+    .hero h1 {
+      font-size: clamp(34px, 4.8vw, 50px);
+      font-weight: 800;
+      line-height: 1.05;
+      margin-bottom: 24px;
+      color: var(--ink);
+      letter-spacing: -0.03em;
+    }
+    .hero h1 .gradient-text {
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+    }
+
+    .hero p {
+      font-size: clamp(17px, 1.8vw, 20px);
+      color: var(--text-muted);
+      max-width: 560px;
+      margin: 0 0 40px;
+      line-height: 1.55;
+    }
+
+    .hero-ctas {
+      display: flex;
+      justify-content: flex-start;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    /* ══════ Hero Slider (right side) ══════ */
+    .hero-slider {
+      position: relative;
+      aspect-ratio: 1 / 1.05;
+      max-width: 560px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    @media (min-width: 1024px) {
+      .hero-slider { max-width: 100%; }
+    }
+
+    .hero-slide {
+      position: absolute;
+      inset: 0;
+      border-radius: 24px;
+      padding: 32px;
+      background: var(--white);
+      box-shadow: 0 30px 80px -20px rgba(124,58,237,0.3), 0 0 0 1px rgba(255,255,255,0.5);
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+      transition: opacity 0.7s cubic-bezier(0.2,0.8,0.2,1), transform 0.7s cubic-bezier(0.2,0.8,0.2,1);
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+    }
+    .hero-slide.active {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      pointer-events: auto;
+    }
+
+    .hero-slide-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: var(--primary-softer);
+      color: var(--primary-dark);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-radius: 100px;
+      width: fit-content;
+      margin-bottom: 20px;
+    }
+    .hero-slide-label.green { background: #dcfce7; color: #15803d; }
+    .hero-slide-label.pink { background: #fce7f3; color: #9f1239; }
+
+    .hero-slide h3 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+    .hero-slide-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .hero-slide-rows {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      background: var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .hero-row {
+      background: var(--white);
+      padding: 14px 16px;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 12px;
+      align-items: center;
+      font-size: 13px;
+    }
+    .hero-row.header {
+      background: var(--bg-soft);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 10px 16px;
+    }
+    .hero-row-name {
+      font-weight: 600;
+      color: var(--ink);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .hero-row-meta {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .hero-row-tag {
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      justify-self: end;
+    }
+    .tag-active { background: #dcfce7; color: #15803d; }
+    .tag-pending { background: #fef3c7; color: #92400e; }
+    .tag-paid { background: #dbeafe; color: #1e40af; }
+    .tag-overdue { background: #fee2e2; color: #991b1b; }
+
+    .hero-slide-footer {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px dashed var(--border);
+    }
+    .hero-stat-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .hero-stat-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+    .hero-stat-value.purple {
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Floating tag */
+    .hero-float {
+      position: absolute;
+      background: var(--white);
+      padding: 14px 18px;
+      border-radius: 14px;
+      box-shadow: 0 20px 40px -15px rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .hero-float.top-left {
+      top: -30px; left: -20px;
+      animation: float-1 4s ease-in-out infinite;
+    }
+    .hero-float.bottom-right {
+      bottom: 40px; right: -20px;
+      animation: float-2 5s ease-in-out infinite;
+    }
+    .hero-float-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      background: var(--gradient-purple);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .hero-float-icon.green { background: linear-gradient(135deg, #22c55e, #16a34a); }
+
+    @keyframes float-1 {
+      0%, 100% { transform: translateY(0) rotate(-2deg); }
+      50% { transform: translateY(-8px) rotate(-2deg); }
+    }
+    @keyframes float-2 {
+      0%, 100% { transform: translateY(0) rotate(3deg); }
+      50% { transform: translateY(-8px) rotate(3deg); }
+    }
+
+    /* Slider dots */
+    .hero-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 28px;
+    }
+    .hero-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: rgba(124,58,237,0.25);
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .hero-dot.active {
+      width: 28px;
+      border-radius: 100px;
+      background: var(--primary);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 32px;
+      font-family: "Poppins", sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 100px;
+      transition: all 0.3s;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--ink);
+      color: var(--white);
+    }
+    .btn-primary:hover {
+      background: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: 0 15px 35px -10px var(--primary);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--ink);
+      border-color: var(--ink);
+    }
+    .btn-secondary:hover {
+      background: var(--ink);
+      color: var(--white);
+    }
+    .btn .arrow { transition: transform 0.25s; font-size: 18px; }
+    .btn:hover .arrow { transform: translateX(4px); }
+
+    .hero-social {
+      margin-top: 48px;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+    .hero-social .stars {
+      color: #f59e0b;
+      letter-spacing: 3px;
+      font-size: 16px;
+      vertical-align: middle;
+    }
+
+    /* ══════ Problem section (dark) ══════ */
+    .problem {
+      padding: 120px 40px;
+      background: var(--gradient-dark);
+      color: var(--white);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .problem::before {
+      content: "";
+      position: absolute;
+      top: -200px; right: -200px;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(124,58,237,0.35) 0%, transparent 70%);
+      border-radius: 50%;
+      filter: blur(60px);
+    }
+    .problem::after {
+      content: "";
+      position: absolute;
+      bottom: -200px; left: -200px;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(236,72,153,0.25) 0%, transparent 70%);
+      border-radius: 50%;
+      filter: blur(60px);
+    }
+
+    .problem-header {
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto 80px;
+      position: relative;
+    }
+
+    .problem h2 {
+      font-size: clamp(36px, 5vw, 56px);
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 16px;
+    }
+    .problem h2 .accent-text {
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .problem > .container > p.problem-subtitle {
+      text-align: center;
+      color: rgba(255,255,255,0.7);
+      font-size: 17px;
+      max-width: 600px;
+      margin: 0 auto 64px;
+    }
+
+    .problem-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .problem-card {
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 36px;
+      transition: all 0.4s;
+    }
+    .problem-card:hover {
+      transform: translateY(-6px);
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(167,139,250,0.3);
+    }
+
+    .problem-card-icon {
+      width: 52px; height: 52px;
+      border-radius: 12px;
+      background: var(--gradient-purple);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 24px;
+    }
+
+    .problem-card h3 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 12px;
+    }
+    .problem-card p {
+      color: rgba(255,255,255,0.65);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ══════ Solution / Quote section ══════ */
+    .solution {
+      padding: 120px 40px;
+      background: var(--gradient-hero);
+      text-align: center;
+    }
+
+    .solution-quote {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .solution-quote h2 {
+      font-size: clamp(32px, 4.5vw, 52px);
+      font-weight: 700;
+      line-height: 1.15;
+      margin-bottom: 24px;
+    }
+    .solution-quote h2 .gradient-text {
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .solution-quote p {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 620px;
+      margin: 0 auto;
+    }
+
+    /* ══════ Feature split sections ══════ */
+    .feature-split {
+      padding: 120px 40px;
+      background: var(--white);
+    }
+
+    .feature-split-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 60px;
+      align-items: center;
+    }
+
+    @media (min-width: 900px) {
+      .feature-split-inner { grid-template-columns: 1fr 1fr; gap: 80px; }
+      .feature-split.reverse .feature-split-inner > :first-child { order: 2; }
+    }
+
+    .feature-split h2 {
+      font-size: clamp(32px, 4.5vw, 48px);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 20px;
+      color: var(--ink);
+    }
+    .feature-split h2 .gradient-text {
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .feature-split p {
+      font-size: 17px;
+      color: var(--text-muted);
+      line-height: 1.65;
+      margin-bottom: 24px;
+    }
+
+    .feature-list {
+      list-style: none;
+    }
+    .feature-list li {
+      display: flex;
+      align-items: start;
+      gap: 12px;
+      padding: 10px 0;
+      font-size: 15px;
+      color: var(--text);
+    }
+    .feature-list li::before {
+      content: "✓";
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .feature-visual {
+      background: var(--gradient-hero);
+      border-radius: 24px;
+      padding: 40px;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 30px 60px -20px rgba(124,58,237,0.25);
+    }
+
+    .feature-visual.dark {
+      background: var(--gradient-dark);
+    }
+
+    .feature-visual-inner {
+      width: 100%;
+      background: var(--white);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 20px 50px -20px rgba(0,0,0,0.25);
+      font-family: "Poppins", sans-serif;
+    }
+
+    .mock-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .mock-dot { width: 10px; height: 10px; border-radius: 50%; background: #fbbf24; }
+    .mock-dot:first-child { background: #ef4444; }
+    .mock-dot:last-child { background: #22c55e; }
+    .mock-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    .mock-stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .mock-stat:last-child { border-bottom: none; }
+    .mock-stat-label { color: var(--text-muted); }
+    .mock-stat-value { font-weight: 700; color: var(--ink); font-size: 16px; }
+    .mock-badge {
+      padding: 4px 10px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    /* ══════ Steps ══════ */
+    .steps {
+      padding: 120px 40px;
+      background: var(--bg-soft);
+    }
+
+    .steps-header {
+      text-align: center;
+      max-width: 760px;
+      margin: 0 auto 80px;
+    }
+
+    .steps h2 {
+      font-size: clamp(36px, 5vw, 56px);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+    .steps h2 .gradient-text {
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .steps-header p {
+      font-size: 17px;
+      color: var(--text-muted);
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .step {
+      background: var(--white);
+      border-radius: 20px;
+      padding: 36px 32px;
+      position: relative;
+      border: 1px solid var(--border);
+      transition: all 0.3s;
+    }
+    .step:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 40px -15px rgba(124,58,237,0.2);
+      border-color: var(--primary-light);
+    }
+    .step-num {
+      position: absolute;
+      top: -20px;
+      right: 24px;
+      width: 44px; height: 44px;
+      border-radius: 12px;
+      background: var(--gradient-purple);
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .step h3 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      margin-top: 12px;
+    }
+    .step p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* ══════ Pricing ══════ */
+    .pricing {
+      padding: 120px 40px;
+      background: var(--gradient-dark);
+      color: var(--white);
+      position: relative;
+      overflow: hidden;
+    }
+    .pricing::before {
+      content: "";
+      position: absolute;
+      top: 20%; left: 50%;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(124,58,237,0.3) 0%, transparent 70%);
+      transform: translate(-50%, -20%);
+      filter: blur(80px);
+    }
+
+    .pricing-header {
+      text-align: center;
+      max-width: 760px;
+      margin: 0 auto 80px;
+      position: relative;
+    }
+    .pricing h2 {
+      font-size: clamp(36px, 5vw, 56px);
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 16px;
+    }
+    .pricing h2 .gradient-text {
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .pricing-header p {
+      color: rgba(255,255,255,0.7);
+      font-size: 17px;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .price-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px;
+      padding: 40px 32px;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s;
+    }
+    .price-card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(167,139,250,0.4);
+    }
+
+    .price-card.featured {
+      background: linear-gradient(135deg, rgba(124,58,237,0.25), rgba(236,72,153,0.15));
+      border: 1px solid rgba(167,139,250,0.5);
+      position: relative;
+      transform: scale(1.02);
+    }
+    .price-card.featured::before {
+      content: "Most Popular";
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--gradient-purple);
+      color: var(--white);
+      padding: 6px 16px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .price-tier-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.6);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .price-amount {
+      font-size: 48px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 4px;
+      color: var(--white);
+    }
+    .price-amount .currency {
+      font-size: 24px;
+      vertical-align: top;
+      margin-right: 4px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.7);
+    }
+    .price-amount .period {
+      font-size: 16px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.55);
+    }
+    .price-desc {
+      font-size: 14px;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .price-features {
+      list-style: none;
+      margin-bottom: 32px;
+    }
+    .price-features li {
+      padding: 10px 0;
+      font-size: 14px;
+      color: rgba(255,255,255,0.85);
+      display: flex;
+      align-items: start;
+      gap: 10px;
+    }
+    .price-features li::before {
+      content: "✓";
+      color: var(--primary-light);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .price-btn {
+      display: block;
+      text-align: center;
+      padding: 14px;
+      background: rgba(255,255,255,0.08);
+      color: var(--white);
+      border-radius: 100px;
+      font-weight: 600;
+      font-size: 14px;
+      border: 1px solid rgba(255,255,255,0.15);
+      transition: all 0.25s;
+      width: 100%;
+    }
+    .price-btn:hover {
+      background: var(--white);
+      color: var(--ink);
+    }
+    .price-card.featured .price-btn {
+      background: var(--white);
+      color: var(--ink);
+      border-color: var(--white);
+    }
+    .price-card.featured .price-btn:hover {
+      background: var(--primary);
+      color: var(--white);
+    }
+
+    /* ══════ FAQ ══════ */
+    .faq {
+      padding: 120px 40px;
+      background: var(--white);
+    }
+    .faq-inner {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .faq-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+    .faq h2 {
+      font-size: clamp(36px, 5vw, 52px);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 12px;
+    }
+    .faq h2 .gradient-text {
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+    }
+    .faq-item summary {
+      padding: 24px 0;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      list-style: none;
+      transition: color 0.2s;
+    }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary:hover { color: var(--primary); }
+    .faq-item summary::after {
+      content: "+";
+      font-size: 24px;
+      font-weight: 400;
+      color: var(--primary);
+      transition: transform 0.3s;
+    }
+    .faq-item[open] summary::after { transform: rotate(45deg); }
+    .faq-item-body {
+      padding: 0 0 24px;
+      font-size: 15px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* ══════ CTA footer ══════ */
+    .final-cta {
+      padding: 120px 40px 100px;
+      background: var(--gradient-dark);
+      color: var(--white);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .final-cta::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 50%;
+      width: 800px; height: 800px;
+      background: radial-gradient(circle, rgba(167,139,250,0.3) 0%, transparent 60%);
+      transform: translate(-50%, -40%);
+      filter: blur(80px);
+    }
+
+    .final-cta-inner {
+      position: relative;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .final-cta h2 {
+      font-size: clamp(40px, 6vw, 72px);
+      font-weight: 800;
+      line-height: 1.05;
+      margin-bottom: 24px;
+      color: var(--white);
+    }
+    .final-cta h2 .gradient-text {
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .final-cta p {
+      font-size: 18px;
+      color: rgba(255,255,255,0.75);
+      max-width: 600px;
+      margin: 0 auto 40px;
+    }
+    .final-cta .btn-primary {
+      background: var(--white);
+      color: var(--ink);
+    }
+    .final-cta .btn-primary:hover {
+      background: var(--primary);
+      color: var(--white);
+    }
+    .final-cta .btn-secondary {
+      color: var(--white);
+      border-color: rgba(255,255,255,0.3);
+    }
+    .final-cta .btn-secondary:hover {
+      background: var(--white);
+      color: var(--ink);
+    }
+
+    /* ══════ Footer ══════ */
+    footer {
+      background: var(--ink);
+      color: var(--white);
+      padding: 60px 40px 30px;
+      font-size: 14px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .footer-grid {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 40px;
+      padding-bottom: 40px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    @media (min-width: 768px) {
+      .footer-grid { grid-template-columns: 2fr 1fr 1fr 1fr; }
+    }
+
+    .footer-brand {
+      font-size: 28px;
+      font-weight: 800;
+      background: var(--gradient-purple);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.03em;
+    }
+    .footer-brand + p {
+      margin-top: 14px;
+      color: rgba(255,255,255,0.6);
+      max-width: 320px;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    footer h4 {
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 18px;
+      font-weight: 600;
+    }
+    footer ul { list-style: none; }
+    footer li { margin-bottom: 10px; }
+    footer li a {
+      color: rgba(255,255,255,0.8);
+      transition: color 0.2s;
+    }
+    footer li a:hover { color: var(--primary-light); }
+
+    .footer-bottom {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding-top: 30px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      color: rgba(255,255,255,0.5);
+      font-size: 13px;
+    }
+
+    /* ══════ Animations ══════ */
+    [data-anim] {
+      opacity: 0;
+      animation: reveal 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    [data-anim="1"] { animation-delay: 0.1s; }
+    [data-anim="2"] { animation-delay: 0.25s; }
+    [data-anim="3"] { animation-delay: 0.4s; }
+    [data-anim="4"] { animation-delay: 0.55s; }
+
+    .reveal-on-scroll {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1),
+                  transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .reveal-on-scroll.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      [data-anim], .reveal-on-scroll {
+        opacity: 1 !important;
+        transform: none !important;
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar" data-anim="1">
+    <div class="logo">Acadily</div>
+    <nav>
+      <a href="#problem">Problem</a>
+      <a href="#platform">Platform</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+      <a class="nav-cta" href="https://app.acadily.com">Sign in →</a>
+    </nav>
+  </header>
+
+  <main>
+
+    <!-- ══════ HERO (Split + Slider) ══════ -->
+    <section class="hero">
+      <div class="hero-inner">
+        <div class="hero-left">
+          <div class="eyebrow" data-anim="1">The Operating System for Institutes</div>
+          <h1 data-anim="2">
+            Run every branch.<br/>
+            Track every <span class="gradient-text">student, fee,</span><br/>
+            and ledger — <span class="gradient-text">in one place.</span>
+          </h1>
+          <p data-anim="3">
+            Acadily replaces five copy-pasted apps with one platform. Built for
+            the real way Indian coaching centers, academies, and salons actually
+            operate — not how software imagines they do.
+          </p>
+          <div class="hero-ctas" data-anim="4">
+            <a class="btn btn-primary" href="https://app.acadily.com">
+              Start For Free <span class="arrow">→</span>
+            </a>
+            <a class="btn btn-secondary" href="#platform">
+              See How It Works <span class="arrow">→</span>
+            </a>
+          </div>
+          <div class="hero-social" data-anim="4">
+            <span class="stars">★★★★★</span>
+            &nbsp; Trusted by 5 institutes · 99 students · 384 fee records
+          </div>
+        </div>
+
+        <div class="hero-slider" data-anim="5">
+          <!-- Floating badges -->
+          <div class="hero-float top-left">
+            <div class="hero-float-icon green">✓</div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);font-weight:500;">New enrollment</div>
+              <div>Gurvinder Singh</div>
+            </div>
+          </div>
+          <div class="hero-float bottom-right">
+            <div class="hero-float-icon">₹</div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);font-weight:500;">Fee received</div>
+              <div>₹25,000 · Paid</div>
+            </div>
+          </div>
+
+          <!-- Slide 1: Students -->
+          <div class="hero-slide active" data-slide="0">
+            <span class="hero-slide-label">● Students</span>
+            <h3>Every student, at a glance</h3>
+            <p class="hero-slide-subtitle">Roll numbers, courses, attendance — one record per student</p>
+
+            <div class="hero-slide-rows">
+              <div class="hero-row header">
+                <span>Name</span>
+                <span>Course</span>
+                <span style="text-align:right;">Status</span>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">Aanvi Thakur</div>
+                  <div class="hero-row-meta">Roll 1291</div>
+                </div>
+                <div class="hero-row-meta">Web Designing</div>
+                <div class="hero-row-tag tag-active">Active</div>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">Kiranjot Kaur</div>
+                  <div class="hero-row-meta">Roll 1292</div>
+                </div>
+                <div class="hero-row-meta">Digital Marketing</div>
+                <div class="hero-row-tag tag-active">Active</div>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">Gaurav Arya</div>
+                  <div class="hero-row-meta">Roll 1279</div>
+                </div>
+                <div class="hero-row-meta">Content Creation</div>
+                <div class="hero-row-tag tag-active">Active</div>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">Ashley Walia</div>
+                  <div class="hero-row-meta">Roll 1281</div>
+                </div>
+                <div class="hero-row-meta">MCCM</div>
+                <div class="hero-row-tag tag-pending">Pending</div>
+              </div>
+            </div>
+
+            <div class="hero-slide-footer">
+              <div>
+                <div class="hero-stat-label">Total</div>
+                <div class="hero-stat-value">99</div>
+              </div>
+              <div>
+                <div class="hero-stat-label">Active</div>
+                <div class="hero-stat-value purple">54</div>
+              </div>
+              <div>
+                <div class="hero-stat-label">Dropouts</div>
+                <div class="hero-stat-value">5</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Slide 2: Fees -->
+          <div class="hero-slide" data-slide="1">
+            <span class="hero-slide-label green">● Fees & Installments</span>
+            <h3>Every rupee, accounted for</h3>
+            <p class="hero-slide-subtitle">Installments, receipts, and reminders — automated</p>
+
+            <div class="hero-slide-rows">
+              <div class="hero-row header">
+                <span>Student</span>
+                <span>Amount</span>
+                <span style="text-align:right;">Status</span>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">VM-2770</div>
+                  <div class="hero-row-meta">Receipt</div>
+                </div>
+                <div class="hero-row-meta" style="color:#15803d;font-weight:600;">₹25,000</div>
+                <div class="hero-row-tag tag-paid">Paid</div>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">VM-2769</div>
+                  <div class="hero-row-meta">Installment 2/5</div>
+                </div>
+                <div class="hero-row-meta" style="color:#15803d;font-weight:600;">₹15,000</div>
+                <div class="hero-row-tag tag-paid">Paid</div>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">VM-2768</div>
+                  <div class="hero-row-meta">Installment 3/5</div>
+                </div>
+                <div class="hero-row-meta" style="color:#92400e;font-weight:600;">₹10,000</div>
+                <div class="hero-row-tag tag-pending">Pending</div>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">VM-2765</div>
+                  <div class="hero-row-meta">Installment 4/5</div>
+                </div>
+                <div class="hero-row-meta" style="color:#991b1b;font-weight:600;">₹8,500</div>
+                <div class="hero-row-tag tag-overdue">Overdue</div>
+              </div>
+            </div>
+
+            <div class="hero-slide-footer">
+              <div>
+                <div class="hero-stat-label">Collected</div>
+                <div class="hero-stat-value purple">₹32L</div>
+              </div>
+              <div>
+                <div class="hero-stat-label">Pending</div>
+                <div class="hero-stat-value">₹61L</div>
+              </div>
+              <div>
+                <div class="hero-stat-label">Receipts</div>
+                <div class="hero-stat-value">384</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Slide 3: Daybook -->
+          <div class="hero-slide" data-slide="2">
+            <span class="hero-slide-label pink">● Daybook</span>
+            <h3>Accounting your CA actually trusts</h3>
+            <p class="hero-slide-subtitle">Double-entry ledger, running balance, fully auditable</p>
+
+            <div class="hero-slide-rows">
+              <div class="hero-row header">
+                <span>Narration</span>
+                <span>Debit</span>
+                <span style="text-align:right;">Credit</span>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">Rent — April</div>
+                  <div class="hero-row-meta">Capital Estate</div>
+                </div>
+                <div class="hero-row-meta" style="color:#991b1b;font-weight:600;">₹50,000</div>
+                <div class="hero-row-meta" style="text-align:right;">—</div>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">Fee receipt</div>
+                  <div class="hero-row-meta">VM-2770</div>
+                </div>
+                <div class="hero-row-meta">—</div>
+                <div class="hero-row-meta" style="color:#15803d;font-weight:600;text-align:right;">₹25,000</div>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">Commission</div>
+                  <div class="hero-row-meta">Karan — 50% paid</div>
+                </div>
+                <div class="hero-row-meta" style="color:#991b1b;font-weight:600;">₹4,500</div>
+                <div class="hero-row-meta" style="text-align:right;">—</div>
+              </div>
+              <div class="hero-row">
+                <div>
+                  <div class="hero-row-name">Staff salary</div>
+                  <div class="hero-row-meta">Office Expense</div>
+                </div>
+                <div class="hero-row-meta" style="color:#991b1b;font-weight:600;">₹8,000</div>
+                <div class="hero-row-meta" style="text-align:right;">—</div>
+              </div>
+            </div>
+
+            <div class="hero-slide-footer">
+              <div>
+                <div class="hero-stat-label">Entries</div>
+                <div class="hero-stat-value">1,089</div>
+              </div>
+              <div>
+                <div class="hero-stat-label">Balance</div>
+                <div class="hero-stat-value purple">₹67.5K</div>
+              </div>
+              <div>
+                <div class="hero-stat-label">Accounts</div>
+                <div class="hero-stat-value">70</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dots -->
+          <div class="hero-dots">
+            <button class="hero-dot active" data-dot="0" aria-label="Students"></button>
+            <button class="hero-dot" data-dot="1" aria-label="Fees"></button>
+            <button class="hero-dot" data-dot="2" aria-label="Daybook"></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════ PROBLEM ══════ -->
+    <section id="problem" class="problem">
+      <div class="problem-header">
+        <div class="eyebrow eyebrow-dark reveal-on-scroll">Context</div>
+        <h2 class="reveal-on-scroll">
+          Your Systems Have <span class="accent-text">Blind Spots</span>
+        </h2>
+      </div>
+      <div class="container">
+        <p class="problem-subtitle reveal-on-scroll">
+          Running a multi-branch institute on Excel, WhatsApp, and five different
+          apps hides the problems you can't afford to miss.
+        </p>
+
+        <div class="problem-cards">
+          <div class="problem-card reveal-on-scroll">
+            <div class="problem-card-icon">⚡</div>
+            <h3>Data in five places</h3>
+            <p>
+              Students in one app. Fees in another. Attendance in a notebook.
+              Month-end reconciliation takes days, and numbers never quite match.
+            </p>
+          </div>
+          <div class="problem-card reveal-on-scroll">
+            <div class="problem-card-icon">🔒</div>
+            <h3>No access control</h3>
+            <p>
+              Everyone sees everything. Counsellors can edit fees. Accountants
+              can see every branch. One wrong edit and records are gone.
+            </p>
+          </div>
+          <div class="problem-card reveal-on-scroll">
+            <div class="problem-card-icon">📉</div>
+            <h3>Growth hits a wall</h3>
+            <p>
+              New branch? New software. New bug? Five patches. Scaling means
+              duplicating chaos — not just the good parts.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════ SOLUTION QUOTE ══════ -->
+    <section class="solution">
+      <div class="solution-quote">
+        <div class="eyebrow reveal-on-scroll">The Solution</div>
+        <h2 class="reveal-on-scroll">
+          Your Data Has the Answers. <span class="gradient-text">Acadily Finds Them.</span>
+        </h2>
+        <p class="reveal-on-scroll">
+          One platform pulls every branch together. Every student, every receipt,
+          every attendance record — reconciled, searchable, and visible to exactly
+          the right people.
+        </p>
+      </div>
+    </section>
+
+    <!-- ══════ FEATURE 1 ══════ -->
+    <section id="platform" class="feature-split">
+      <div class="feature-split-inner">
+        <div class="reveal-on-scroll">
+          <div class="eyebrow">Complete Student Lifecycle</div>
+          <h2>See Every Student, <span class="gradient-text">From Day One.</span></h2>
+          <p>
+            Enrollment, courses, fees, attendance, dropout, completion — one
+            continuous record. No more switching apps to piece together a student's story.
+          </p>
+          <ul class="feature-list">
+            <li>Enrollment with custom admission forms</li>
+            <li>Roll number auto-generation per branch</li>
+            <li>Installment tracking with reminders</li>
+            <li>Dropout and completion workflows</li>
+            <li>Welcome emails, warnings, receipts — templated</li>
+          </ul>
+        </div>
+        <div class="feature-visual reveal-on-scroll">
+          <div class="feature-visual-inner">
+            <div class="mock-header">
+              <div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div>
+              <div class="mock-title">Student Profile</div>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label">Course fee</span>
+              <span class="mock-stat-value">₹45,000</span>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label">Paid</span>
+              <span class="mock-stat-value" style="color:#15803d">₹30,000</span>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label">Remaining</span>
+              <span class="mock-stat-value" style="color:#dc2626">₹15,000</span>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label">Attendance</span>
+              <span class="mock-stat-value">92%</span>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label">Status</span>
+              <span class="mock-badge">Active</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════ FEATURE 2 ══════ -->
+    <section class="feature-split reverse" style="background: var(--bg-soft);">
+      <div class="feature-split-inner">
+        <div class="reveal-on-scroll">
+          <div class="eyebrow">Double-entry Daybook</div>
+          <h2>Accounting That <span class="gradient-text">Actually Balances.</span></h2>
+          <p>
+            A proper double-entry daybook per branch, with debit, credit, and
+            running balance. The ledger your accountant asks for, not the
+            spreadsheet mess she usually gets.
+          </p>
+          <ul class="feature-list">
+            <li>Per-branch daybook accounts</li>
+            <li>Automatic balance calculation</li>
+            <li>Expense, commission, fee entries</li>
+            <li>Fully searchable, fully exportable</li>
+            <li>Complete audit trail per entry</li>
+          </ul>
+        </div>
+        <div class="feature-visual dark reveal-on-scroll">
+          <div class="feature-visual-inner" style="background:#0f0718; color:white;">
+            <div class="mock-header" style="border-color:rgba(255,255,255,0.15);">
+              <div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div>
+              <div class="mock-title" style="color:rgba(255,255,255,0.5);">Daybook — April</div>
+            </div>
+            <div class="mock-stat" style="border-color:rgba(255,255,255,0.1);">
+              <span class="mock-stat-label" style="color:rgba(255,255,255,0.6);">Total Debit</span>
+              <span class="mock-stat-value" style="color:#fca5a5;">₹2,45,000</span>
+            </div>
+            <div class="mock-stat" style="border-color:rgba(255,255,255,0.1);">
+              <span class="mock-stat-label" style="color:rgba(255,255,255,0.6);">Total Credit</span>
+              <span class="mock-stat-value" style="color:#86efac;">₹3,12,500</span>
+            </div>
+            <div class="mock-stat" style="border-color:rgba(255,255,255,0.1);">
+              <span class="mock-stat-label" style="color:rgba(255,255,255,0.6);">Net Balance</span>
+              <span class="mock-stat-value" style="color:#a78bfa;">₹67,500</span>
+            </div>
+            <div class="mock-stat" style="border-color:rgba(255,255,255,0.1);">
+              <span class="mock-stat-label" style="color:rgba(255,255,255,0.6);">Entries</span>
+              <span class="mock-stat-value" style="color:white;">124</span>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label" style="color:rgba(255,255,255,0.6);">Reconciled</span>
+              <span class="mock-badge" style="background:rgba(34,197,94,0.2); color:#86efac;">Yes</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════ FEATURE 3 ══════ -->
+    <section class="feature-split">
+      <div class="feature-split-inner">
+        <div class="reveal-on-scroll">
+          <div class="eyebrow">Role-based Access</div>
+          <h2>Right Data, <span class="gradient-text">Right People.</span></h2>
+          <p>
+            Six built-in roles — SuperAdmin, Admin, Counsellor, Accounts,
+            Telecaller, Student — each with the exact permissions they need.
+            Nothing more. Nothing missing.
+          </p>
+          <ul class="feature-list">
+            <li>Per-company visibility control</li>
+            <li>Granular edit permissions</li>
+            <li>Multi-tenant isolation</li>
+            <li>Custom roles on request</li>
+            <li>Every action fully audited</li>
+          </ul>
+        </div>
+        <div class="feature-visual reveal-on-scroll">
+          <div class="feature-visual-inner">
+            <div class="mock-header">
+              <div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div>
+              <div class="mock-title">Role Permissions</div>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label">SuperAdmin</span>
+              <span class="mock-badge">Full Access</span>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label">Admin</span>
+              <span class="mock-badge" style="background:#dbeafe; color:#1e40af;">Branch-level</span>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label">Counsellor</span>
+              <span class="mock-badge" style="background:#fef3c7; color:#92400e;">Students + Fees</span>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label">Accounts</span>
+              <span class="mock-badge" style="background:#fce7f3; color:#9f1239;">Daybook only</span>
+            </div>
+            <div class="mock-stat">
+              <span class="mock-stat-label">Telecaller</span>
+              <span class="mock-badge" style="background:#e0e7ff; color:#3730a3;">Leads only</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════ STEPS ══════ -->
+    <section class="steps">
+      <div class="steps-header">
+        <div class="eyebrow reveal-on-scroll">Onboarding</div>
+        <h2 class="reveal-on-scroll">
+          Get Started in <span class="gradient-text">Four Simple Steps</span>
+        </h2>
+        <p class="reveal-on-scroll">
+          From sign-up to running your first branch — under thirty minutes.
+        </p>
+      </div>
+      <div class="steps-grid">
+        <div class="step reveal-on-scroll">
+          <div class="step-num">1</div>
+          <h3>Sign up your institute</h3>
+          <p>One form, one admin account. We set up your tenant immediately.</p>
+        </div>
+        <div class="step reveal-on-scroll">
+          <div class="step-num">2</div>
+          <h3>Add your branches</h3>
+          <p>Configure each branch with its own logo, GST, address, and receipt format.</p>
+        </div>
+        <div class="step reveal-on-scroll">
+          <div class="step-num">3</div>
+          <h3>Import or add courses</h3>
+          <p>Define courses, fees, subjects, and durations. Import from Excel if you have them.</p>
+        </div>
+        <div class="step reveal-on-scroll">
+          <div class="step-num">4</div>
+          <h3>Invite your team</h3>
+          <p>Assign roles, give branch access, and start running your institute from day one.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════ PRICING ══════ -->
+    <section id="pricing" class="pricing">
+      <div class="pricing-header">
+        <div class="eyebrow eyebrow-dark reveal-on-scroll">Pricing</div>
+        <h2 class="reveal-on-scroll">
+          Simple Pricing. <span class="gradient-text">Made For Institutes.</span>
+        </h2>
+        <p class="reveal-on-scroll">
+          No per-user charges. No hidden fees. One flat price per institute,
+          every branch included.
+        </p>
+      </div>
+      <div class="pricing-grid">
+        <div class="price-card reveal-on-scroll">
+          <div class="price-tier-name">Starter</div>
+          <div class="price-amount">
+            <span class="currency">₹</span>0<span class="period">/month</span>
+          </div>
+          <p class="price-desc">Free forever. For institutes just getting started.</p>
+          <ul class="price-features">
+            <li>1 branch</li>
+            <li>Up to 50 students</li>
+            <li>Core student & fees modules</li>
+            <li>Email support</li>
+          </ul>
+          <a class="price-btn" href="https://app.acadily.com">Get Started</a>
+        </div>
+
+        <div class="price-card featured reveal-on-scroll">
+          <div class="price-tier-name">Pro</div>
+          <div class="price-amount">
+            <span class="currency">₹</span>499<span class="period">/month</span>
+          </div>
+          <p class="price-desc">For growing institutes with multiple branches.</p>
+          <ul class="price-features">
+            <li>Unlimited branches</li>
+            <li>Unlimited students</li>
+            <li>All modules (fees, daybook, forms)</li>
+            <li>Role-based access</li>
+            <li>WhatsApp & email notifications</li>
+            <li>Priority support</li>
+          </ul>
+          <a class="price-btn" href="mailto:designermanjeets@gmail.com">Start Free Trial</a>
+        </div>
+
+        <div class="price-card reveal-on-scroll">
+          <div class="price-tier-name">Enterprise</div>
+          <div class="price-amount">
+            <span class="currency">₹</span>1,499<span class="period">/month</span>
+          </div>
+          <p class="price-desc">For institute groups with advanced needs.</p>
+          <ul class="price-features">
+            <li>Everything in Pro</li>
+            <li>Custom roles & permissions</li>
+            <li>White-label branding</li>
+            <li>Dedicated account manager</li>
+            <li>SLA-backed uptime</li>
+            <li>Data export & API access</li>
+          </ul>
+          <a class="price-btn" href="mailto:designermanjeets@gmail.com">Contact Sales</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════ FAQ ══════ -->
+    <section id="faq" class="faq">
+      <div class="faq-inner">
+        <div class="faq-header">
+          <div class="eyebrow reveal-on-scroll">FAQ</div>
+          <h2 class="reveal-on-scroll">
+            Frequently Asked<br/>
+            <span class="gradient-text">Questions</span>
+          </h2>
+        </div>
+
+        <details class="faq-item reveal-on-scroll">
+          <summary>How long does it take to onboard my institute?</summary>
+          <div class="faq-item-body">
+            Most institutes are set up and running within 30 minutes. We create
+            your tenant, configure branches, and import your courses — all while
+            you're on a call with us.
+          </div>
+        </details>
+
+        <details class="faq-item reveal-on-scroll">
+          <summary>Can I import data from my existing software?</summary>
+          <div class="faq-item-body">
+            Yes. We've already migrated institutes running on legacy Express apps,
+            spreadsheets, and Google Sheets. If your data is structured, we can
+            import it. If it's scattered, we'll help you clean it up.
+          </div>
+        </details>
+
+        <details class="faq-item reveal-on-scroll">
+          <summary>Are my branches kept separate from other institutes?</summary>
+          <div class="faq-item-body">
+            Completely. Every document in Acadily carries a tenant identifier.
+            Your students, fees, and reports are never visible to any other
+            institute — not even to us without your explicit permission.
+          </div>
+        </details>
+
+        <details class="faq-item reveal-on-scroll">
+          <summary>Do counsellors see all branches by default?</summary>
+          <div class="faq-item-body">
+            No. Role-based access controls which branches each person sees.
+            Counsellors only see their assigned branch. Accounts staff see
+            their company's ledger. You decide the permissions.
+          </div>
+        </details>
+
+        <details class="faq-item reveal-on-scroll">
+          <summary>What happens if I outgrow my plan?</summary>
+          <div class="faq-item-body">
+            Upgrade anytime. Your data stays intact. Changes take effect
+            immediately — no migration, no downtime, no data loss.
+          </div>
+        </details>
+
+        <details class="faq-item reveal-on-scroll">
+          <summary>Who do I contact for support?</summary>
+          <div class="faq-item-body">
+            You talk directly to the team that built the platform. No tiered
+            ticketing, no enterprise runaround — real answers from the people
+            who know the code.
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ══════ FINAL CTA ══════ -->
+    <section class="final-cta">
+      <div class="final-cta-inner">
+        <div class="eyebrow eyebrow-dark reveal-on-scroll">Ready when you are</div>
+        <h2 class="reveal-on-scroll">
+          Start Streamlining Your Institute <span class="gradient-text">Today.</span>
+        </h2>
+        <p class="reveal-on-scroll">
+          Join the institutes already running every branch from one platform.
+          Free to start, takes less than thirty minutes to set up.
+        </p>
+        <div class="hero-ctas reveal-on-scroll" style="justify-content:center;">
+          <a class="btn btn-primary" href="https://app.acadily.com">
+            Get Started Free <span class="arrow">→</span>
+          </a>
+          <a class="btn btn-secondary" href="mailto:designermanjeets@gmail.com">
+            Talk to Sales <span class="arrow">→</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ══════ FOOTER ══════ -->
+  <footer>
+    <div class="footer-grid">
+      <div>
+        <div class="footer-brand">Acadily</div>
+        <p>The operating system for coaching centers, academies, and salons. Built by Aiinfox.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#platform">Platform</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="https://app.acadily.com">Sign in</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="https://aiinfox.com">Aiinfox</a></li>
+          <li><a href="mailto:designermanjeets@gmail.com">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Status</h4>
+        <ul>
+          <li><a href="https://app.acadily.com">Application</a></li>
+          <li><a href="https://health.acadily.com">System health</a></li>
+          <li><a href="https://api.acadily.com">API docs</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Acadily — built by Aiinfox</span>
+      <span>Status: <a href="https://app.acadily.com" style="color:var(--primary-light);">live</a></span>
+    </div>
+  </footer>
+
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: "0px 0px -50px 0px" });
+
+    document.querySelectorAll(".reveal-on-scroll").forEach(el => observer.observe(el));
+
+    document.querySelectorAll(".problem-cards .problem-card, .steps-grid .step, .pricing-grid .price-card").forEach((el, i) => {
+      el.style.transitionDelay = (i * 80) + "ms";
+    });
+
+    // ══════ Hero slider ══════
+    (function() {
+      const slides = document.querySelectorAll(".hero-slide");
+      const dots = document.querySelectorAll(".hero-dot");
+      if (!slides.length) return;
+
+      let current = 0;
+      let timer;
+
+      function go(idx) {
+        slides[current].classList.remove("active");
+        dots[current].classList.remove("active");
+        current = idx;
+        slides[current].classList.add("active");
+        dots[current].classList.add("active");
+      }
+
+      function next() { go((current + 1) % slides.length); }
+
+      function start() {
+        timer = setInterval(next, 4500);
+      }
+      function stop() { clearInterval(timer); }
+
+      dots.forEach((dot, i) => {
+        dot.addEventListener("click", () => {
+          stop();
+          go(i);
+          start();
+        });
+      });
+
+      // Pause on hover
+      const slider = document.querySelector(".hero-slider");
+      if (slider) {
+        slider.addEventListener("mouseenter", stop);
+        slider.addEventListener("mouseleave", start);
+      }
+
+      start();
+    })();
+  </script>
+</body>
+</html>

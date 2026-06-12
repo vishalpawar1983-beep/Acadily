@@ -1,0 +1,9 @@
+# Hidden from all crawlers until public launch
+User-agent: *
+Disallow: /
+
+User-agent: Googlebot
+Disallow: /
+
+User-agent: Bingbot
+Disallow: /

@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3001:3001"
+    env_file:
+      - ../.env
+    volumes:
+      - uploads_data:/app/uploads
+      - images_data:/app/images
+    restart: unless-stopped
+    networks:
+      - flex-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    networks:
+      - flex-net
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3100:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=FlexAcademy@2026
+    restart: unless-stopped
+    networks:
+      - flex-net
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3200:3100"
+    restart: unless-stopped
+    networks:
+      - flex-net
+
+networks:
+  flex-net:
+    driver: bridge
+
+volumes:
+  grafana_data:
+  prometheus_data:
+  uploads_data:
+  images_data:
