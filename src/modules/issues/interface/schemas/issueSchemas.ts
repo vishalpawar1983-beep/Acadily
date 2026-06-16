@@ -5,7 +5,9 @@ export const createIssueSchema = z.object({
     studentId: z.string().min(1, 'Student ID is required'),
     date: z.string().optional(),
     particulars: z.string().min(1, 'Particulars is required').max(2000),
-    addedBy: z.string().min(1, 'AddedBy is required'),
+    // Optional: the legacy student-profile note form does not send addedBy.
+    // The controller defaults it to the authenticated user's name.
+    addedBy: z.string().min(1).optional(),
     showOnDashboard: z.boolean().optional(),
     status: z.enum(['open', 'inProgress', 'resolved', 'closed']).optional(),
   }),

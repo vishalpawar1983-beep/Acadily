@@ -5,6 +5,9 @@ import { ConflictError } from '../../../shared/domain/errors.js';
 
 export interface CreateCustomFieldRequest {
   tenantId: string;
+  companyId?: string;
+  formType?: 'admission' | 'enquiry';
+  formId?: string;
   fieldName: string;
   fieldType: 'text' | 'number' | 'select' | 'date' | 'checkbox' | 'email' | 'textarea' | 'radio' | 'url' | 'currency';
   options?: string[];
@@ -28,7 +31,14 @@ export class CreateCustomField implements UseCase<CreateCustomFieldRequest, Crea
   constructor(private readonly repo: ICustomFieldRepository) {}
 
   async execute(request: CreateCustomFieldRequest): Promise<CreateCustomFieldResponse> {
-    const { fields } = await this.repo.findAll(request.tenantId);
+    // Uniqueness is scoped to the company + form type so the same name may be
+    // reused across companies and across the admission/enquiry forms.
+    const { fields } = await this.repo.findAll(request.tenantId, {
+      companyId: request.companyId,
+      formType: request.formType,
+      formId: request.formId,
+      limit: 1000,
+    });
     const existing = fields.find((f) => f.fieldName === request.fieldName);
     if (existing) {
       throw new ConflictError(`Custom field with name "${request.fieldName}" already exists`);
@@ -36,6 +46,9 @@ export class CreateCustomField implements UseCase<CreateCustomFieldRequest, Crea
 
     const field = CustomField.create({
       tenantId: request.tenantId,
+      companyId: request.companyId,
+      formType: request.formType,
+      formId: request.formId,
       fieldName: request.fieldName,
       fieldType: request.fieldType,
       options: request.options,

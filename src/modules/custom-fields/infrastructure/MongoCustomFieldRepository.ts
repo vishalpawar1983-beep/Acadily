@@ -19,7 +19,10 @@ export class MongoCustomFieldRepository implements ICustomFieldRepository {
     tenantId: string,
     options: FindAllCustomFieldsOptions = {},
   ): Promise<{ fields: CustomField[]; total: number }> {
-    const filter = { tenantId };
+    const filter: Record<string, unknown> = { tenantId };
+    if (options.companyId !== undefined) filter.companyId = options.companyId;
+    if (options.formType !== undefined) filter.formType = options.formType;
+    if (options.formId !== undefined) filter.formId = options.formId;
 
     const [docs, total] = await Promise.all([
       CustomFieldModel.find(filter)
@@ -40,6 +43,9 @@ export class MongoCustomFieldRepository implements ICustomFieldRepository {
     const doc = await CustomFieldModel.create({
       _id: field.id,
       tenantId: field.tenantId,
+      companyId: field.companyId,
+      formType: field.formType,
+      formId: field.formId,
       fieldName: field.fieldName,
       fieldType: field.fieldType,
       options: field.options,
@@ -73,6 +79,9 @@ export class MongoCustomFieldRepository implements ICustomFieldRepository {
   private toDomain(doc: ICustomFieldDocument): CustomField {
     return CustomField.reconstitute(doc._id.toString(), {
       tenantId: doc.tenantId,
+      companyId: doc.companyId,
+      formType: (doc.formType as 'admission' | 'enquiry') ?? 'admission',
+      formId: doc.formId,
       fieldName: doc.fieldName,
       fieldType: doc.fieldType as any,
       options: doc.options,

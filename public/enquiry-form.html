@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enquiry Form</title>
+  <style>
+    :root { --brand:#5b3df5; --bg:#f4f5f9; --card:#fff; --text:#1f2a44; --muted:#7a869a; --border:#e4e6ef; --err:#dc3545; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:'Inter',system-ui,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { max-width:760px; margin:0 auto; padding:32px 16px 64px; }
+    .card { background:var(--card); border-radius:14px; box-shadow:0 6px 24px rgba(0,0,0,.06); overflow:hidden; }
+    .head { padding:28px 28px 20px; border-bottom:1px solid var(--border); }
+    .head h1 { margin:0; font-size:22px; }
+    .head p { margin:6px 0 0; color:var(--muted); font-size:14px; }
+    .body { padding:24px 28px 28px; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:18px 20px; }
+    @media (max-width:560px){ .grid { grid-template-columns:1fr; } }
+    .field.full { grid-column:1 / -1; }
+    label { display:block; font-weight:600; font-size:13.5px; margin-bottom:6px; }
+    .req { color:var(--err); }
+    input,select,textarea { width:100%; padding:11px 13px; font-size:14px; border:1px solid var(--border); border-radius:9px; background:#f9f9fb; color:var(--text); outline:none; }
+    input:focus,select:focus,textarea:focus { border-color:var(--brand); background:#fff; }
+    textarea { resize:vertical; min-height:84px; }
+    .opts { display:flex; flex-wrap:wrap; gap:14px; padding-top:6px; }
+    .opts label { font-weight:500; display:flex; align-items:center; gap:6px; margin:0; }
+    .opts input { width:auto; }
+    .invalid { border-color:var(--err) !important; }
+    .actions { margin-top:26px; display:flex; justify-content:flex-end; }
+    button { background:var(--brand); color:#fff; border:0; padding:12px 28px; font-size:15px; font-weight:600; border-radius:9px; cursor:pointer; }
+    button:disabled { opacity:.6; cursor:default; }
+    .msg { padding:14px 16px; border-radius:9px; font-size:14px; margin-bottom:18px; display:none; }
+    .msg.ok { background:#e8f7ee; color:#157347; display:block; }
+    .msg.err { background:#fdecee; color:#b02a37; display:block; }
+    .center { text-align:center; padding:60px 20px; color:var(--muted); }
+    .done { text-align:center; padding:50px 24px; }
+    .done .tick { width:64px;height:64px;border-radius:50%;background:#e8f7ee;color:#157347;font-size:34px;line-height:64px;margin:0 auto 16px; }
+    .done h2 { margin:0 0 8px; }
+    .done p { color:var(--muted); margin:0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div id="content" class="center">Loading…</div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+    var content = document.getElementById('content');
+
+    // Parse /enquiry/<companyId>/<formId?>
+    var parts = location.pathname.split('/').filter(Boolean); // ['enquiry', companyId, formId?]
+    var companyId = parts[1] || '';
+    var formId = parts[2] || '';
+    var data = null;
+
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+    function apiBase(){ return '/api/public/enquiry/' + encodeURIComponent(companyId) + (formId ? '/' + encodeURIComponent(formId) : ''); }
+
+    function fieldHtml(f, idx){
+      var id = 'f_' + idx;
+      var req = f.mandatory ? ' <span class="req">*</span>' : '';
+      var t = f.fieldType || f.type || 'text';
+      var name = esc(f.name || f.fieldName);
+      var attrs = 'id="'+id+'" data-name="'+name+'" data-type="'+esc(t)+'" data-mandatory="'+(f.mandatory?'1':'0')+'"';
+      var full = (t==='textarea') ? ' full' : '';
+      var inner;
+      switch(t){
+        case 'textarea': inner='<textarea '+attrs+'></textarea>'; break;
+        case 'select':
+          inner='<select '+attrs+'><option value="">-- Select --</option>'+
+            (f.options||[]).map(function(o){ var v=typeof o==='string'?o:(o.value||o.label); return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('')+'</select>';
+          break;
+        case 'radio':
+          inner='<div class="opts" '+attrs+'>'+(f.options||[]).map(function(o){ var v=typeof o==='string'?o:(o.value||o.label); return '<label><input type="radio" name="'+id+'" value="'+esc(v)+'">'+esc(v)+'</label>'; }).join('')+'</div>';
+          break;
+        case 'checkbox':
+          if(f.options && f.options.length){
+            inner='<div class="opts" '+attrs+'>'+f.options.map(function(o){ var v=typeof o==='string'?o:(o.value||o.label); return '<label><input type="checkbox" value="'+esc(v)+'">'+esc(v)+'</label>'; }).join('')+'</div>';
+          } else { inner='<div class="opts"><label><input type="checkbox" '+attrs+' value="Yes"> Yes</label></div>'; }
+          break;
+        case 'date': inner='<input '+attrs+' type="date">'; break;
+        case 'number': case 'currency': inner='<input '+attrs+' type="number" placeholder="Enter '+name+'">'; break;
+        case 'email': inner='<input '+attrs+' type="email" placeholder="Enter '+name+'">'; break;
+        case 'url': inner='<input '+attrs+' type="url" placeholder="Enter '+name+'">'; break;
+        default: inner='<input '+attrs+' type="text" placeholder="Enter '+name+'">';
+      }
+      return '<div class="field'+full+'"><label for="'+id+'">'+name+req+'</label>'+inner+'</div>';
+    }
+
+    function render(){
+      var all = []
+        .concat(data.standardFields||[])
+        .concat((data.defaultSelects||[]))
+        .concat((data.customFields||[]).map(function(c){ return { name:c.fieldName, fieldType:c.fieldType, type:c.fieldType, options:c.options, mandatory:c.mandatory }; }));
+
+      var html = '<div class="head"><h1>'+esc(data.companyName||'Enquiry')+'</h1>'+
+        '<p>'+esc(data.selectedFormName||'Enquiry Form')+' — please fill in your details below.</p></div>'+
+        '<div class="body"><div id="msg" class="msg"></div><form id="enq"><div class="grid">'+
+        all.map(fieldHtml).join('')+
+        '</div><div class="actions"><button type="submit" id="submit">Submit Enquiry</button></div></form></div>';
+      content.className = '';
+      content.innerHTML = html;
+      document.getElementById('enq').addEventListener('submit', onSubmit);
+    }
+
+    function collect(){
+      var groups = content.querySelectorAll('[data-name]');
+      var fields = [], missing = [];
+      groups.forEach(function(ctrl){
+        var name = ctrl.getAttribute('data-name');
+        var type = ctrl.getAttribute('data-type');
+        var mandatory = ctrl.getAttribute('data-mandatory')==='1';
+        var value='';
+        if(type==='radio'){ var r=ctrl.querySelector('input:checked'); value=r?r.value:''; }
+        else if(type==='checkbox'){ var bs=ctrl.querySelectorAll('input[type=checkbox]');
+          if(bs.length>1){ value=Array.prototype.filter.call(bs,function(b){return b.checked;}).map(function(b){return b.value;}).join(', '); }
+          else if(bs.length===1){ value=bs[0].checked?(bs[0].value||'Yes'):''; }
+          else { value=ctrl.checked?(ctrl.value||'Yes'):''; }
+        } else { value=(ctrl.value||'').trim(); }
+        fields.push({ name:name, type:type, value:value, mandatory:mandatory, options:[] });
+        var els = ctrl.matches('input,select,textarea') ? [ctrl] : ctrl.querySelectorAll('input,select,textarea');
+        if(mandatory && !value){ missing.push(name); els.forEach(function(e){e.classList.add('invalid');}); }
+        else { els.forEach(function(e){e.classList.remove('invalid');}); }
+      });
+      return { fields:fields, missing:missing };
+    }
+
+    function showMsg(text, ok){
+      var m=document.getElementById('msg');
+      m.className='msg '+(ok?'ok':'err'); m.textContent=text;
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+
+    function onSubmit(e){
+      e.preventDefault();
+      var res = collect();
+      if(res.missing.length){ showMsg('Please fill required field(s): '+res.missing.join(', '), false); return; }
+      var btn=document.getElementById('submit'); btn.disabled=true; btn.textContent='Submitting…';
+      var postUrl = '/api/public/enquiry/'+encodeURIComponent(companyId)+'/'+encodeURIComponent(data.selectedFormId||formId);
+      fetch(postUrl, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ fields:res.fields }) })
+        .then(function(r){ return r.json().then(function(b){ return {ok:r.ok,b:b}; }); })
+        .then(function(x){
+          if(x.ok){
+            content.innerHTML='<div class="done"><div class="tick">&#10003;</div><h2>Thank you!</h2><p>Your enquiry has been submitted successfully.</p></div>';
+          } else {
+            showMsg((x.b&&x.b.message)||'Submission failed', false);
+            btn.disabled=false; btn.textContent='Submit Enquiry';
+          }
+        })
+        .catch(function(){ showMsg('Network error. Please try again.', false); btn.disabled=false; btn.textContent='Submit Enquiry'; });
+    }
+
+    if(!companyId){ content.innerHTML='<div class="center">Invalid enquiry link.</div>'; return; }
+    fetch(apiBase(), { headers:{'Accept':'application/json'} })
+      .then(function(r){ return r.json().then(function(b){ return {ok:r.ok,b:b}; }); })
+      .then(function(x){
+        if(!x.ok || !x.b || !x.b.success){ content.innerHTML='<div class="center">'+esc((x.b&&x.b.message)||'Enquiry form not found.')+'</div>'; return; }
+        data = x.b;
+        if(!formId) formId = data.selectedFormId || '';
+        render();
+      })
+      .catch(function(){ content.innerHTML='<div class="center">Could not load the enquiry form.</div>'; });
+  })();
+  </script>
+</body>
+</html>

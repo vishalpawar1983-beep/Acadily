@@ -8,6 +8,8 @@ const tokenService = new JwtTokenService();
 
 const PUBLIC_ROUTES = [
   '/health', '/ready', '/metrics',
+  // Public enquiry form (no login) — tenant is derived from the company/form id
+  '/public/',
   // Legacy auth routes (via legacy gateway, req.path is relative to /api mount)
   '/users/auth', '/register', '/users/requestPassword', '/users/verifyToken',
   '/users/verify-otp', '/users/resend-otp',

@@ -12,6 +12,7 @@ import { MongoReceiptCounterRepository } from "../../../modules/receipt/infrastr
 import { MongoTenantRepository } from "../../../modules/tenant/infrastructure/MongoTenantRepository.js";
 import bcryptjs from "bcryptjs";
 import { EmailService } from "../email/EmailService.js";
+import { TemplateEngine } from "../email/TemplateEngine.js";
 
 const tokenService = new JwtTokenService();
 const userRepo = new MongoUserRepository();
@@ -28,6 +29,27 @@ const emailService = new EmailService();
 function p(req: Request, name: string): string {
   const v = req.params[name];
   return Array.isArray(v) ? v[0] : v;
+}
+
+/**
+ * Indian financial year start year for a given date.
+ * FY runs 1 April → 31 March; Jan–Mar belong to the FY that started the previous April.
+ * e.g. 2026-06-10 → 2026, 2027-02-10 → 2026.
+ */
+function financialYearStartYear(date: Date): number {
+  return date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1;
+}
+
+/**
+ * Build a student roll number.
+ * When a tenant has configured a prefix (e.g. "OSC") the roll number is rendered as
+ * `PREFIX/FY-START-YEAR/NUMBER` (e.g. "OSC/2026/1312"). With no prefix configured we
+ * keep the legacy plain-number behaviour for backward compatibility.
+ */
+function formatRollNumber(prefix: string, num: number, date: Date): string {
+  const clean = (prefix || "").trim();
+  if (!clean) return String(num);
+  return `${clean}/${financialYearStartYear(date)}/${num}`;
 }
 
 /** Recursively map `id` → `_id` on objects and arrays */
@@ -151,6 +173,8 @@ function mapStudentToLegacy(s: any, courseMap?: Map<string, any>): any {
     admission_fees: s.admission_fees ?? 0,
     fixed_installment: s.fixed_installment || "",
     batch_starting_fees: s.batch_starting_fees ?? 0,
+    // Tenant-defined custom admission fields (Personal Details section)
+    customFields: s.customFields || {},
   };
 }
 
@@ -2089,6 +2113,62 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
     }
   });
 
+  // ── Roll Number Format: GET configured prefix ──
+  // Returns { prefix, preview }. Prefix is the custom text (e.g. "OSC") prepended to
+  // new roll numbers as PREFIX/FY-START-YEAR/NUMBER. Empty prefix = legacy plain numbers.
+  gateway.get("/rollnumber-format", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.json({ prefix: "", preview: "" });
+        return;
+      }
+      const { default: mongoose } = await import("mongoose");
+      const counter = await mongoose.connection
+        .db!.collection("rollnumbercounters")
+        .findOne({ tenantId });
+      const prefix = (counter?.prefix || "").trim();
+      res.json({
+        prefix,
+        preview: formatRollNumber(prefix, 1000, new Date()),
+      });
+    } catch (err) {
+      logger.error({ err }, "Legacy GET /rollnumber-format failed");
+      res.json({ prefix: "", preview: "" });
+    }
+  });
+
+  // ── Roll Number Format: POST/save prefix ──
+  gateway.post("/rollnumber-format", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+      // Allow letters, digits, space, hyphen and underscore; cap length. Strips
+      // slashes so the PREFIX/YEAR/NUMBER structure stays unambiguous.
+      const raw = String((req.body as any)?.prefix ?? "");
+      const prefix = raw.replace(/[^A-Za-z0-9 _-]/g, "").trim().slice(0, 20);
+      const { default: mongoose } = await import("mongoose");
+      await mongoose.connection
+        .db!.collection("rollnumbercounters")
+        .updateOne(
+          { tenantId },
+          { $set: { prefix, updatedAt: new Date() } },
+          { upsert: true },
+        );
+      res.json({
+        message: "Roll number format saved",
+        prefix,
+        preview: formatRollNumber(prefix, 1000, new Date()),
+      });
+    } catch (err) {
+      logger.error({ err }, "Legacy POST /rollnumber-format failed");
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
   // ── Email Remainder: GET due dates ──
   // Legacy: GET /api/emailRemainder/remainder-dates → plain array [{ _id, firstDueDay, secondDueDay, thirdDueDay }]
   gateway.get(
@@ -2425,6 +2505,108 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
     } catch (err) {
       logger.error({ err }, "Legacy GET /email/allTemplates failed");
       res.json([]);
+    }
+  });
+
+  // ── Send a custom email template to a student ──
+  // POST /api/email-templates/send-to-student
+  // Body: { templateName, studentId, preview? }
+  // Resolves the student's email + variables, compiles the chosen custom template,
+  // and either returns a preview (preview:true) or sends it via SMTP.
+  // Custom templates live in `customemailtemplates` (isolated from the fixed
+  // `emailtemplates` over-due/cancellation templates, which are never touched).
+  gateway.post("/email-templates/send-to-student", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.status(401).json({ success: false, message: "Unauthorized" });
+        return;
+      }
+      const templateName = String(req.body.templateName || "").trim();
+      const studentId = String(req.body.studentId || "").trim();
+      const preview = req.body.preview === true || req.body.preview === "true";
+      if (!templateName || !studentId) {
+        res.status(400).json({ success: false, message: "templateName and studentId are required" });
+        return;
+      }
+
+      const { default: mongoose } = await import("mongoose");
+      const db = mongoose.connection.db!;
+
+      const template = await db
+        .collection("customemailtemplates")
+        .findOne({ tenantId, templateName });
+      if (!template) {
+        res.status(404).json({ success: false, message: "Email template not found" });
+        return;
+      }
+
+      // Resolve the student (by Mongo _id or legacy id)
+      const studentOr: any[] = [{ _legacyId: studentId }];
+      if (mongoose.Types.ObjectId.isValid(studentId))
+        studentOr.unshift({ _id: new mongoose.Types.ObjectId(studentId) });
+      const student = await db.collection("students").findOne({ tenantId, $or: studentOr });
+      if (!student) {
+        res.status(404).json({ success: false, message: "Student not found" });
+        return;
+      }
+
+      const studentName =
+        student.name ||
+        [student.firstName, student.lastName].filter(Boolean).join(" ").trim() ||
+        "Student";
+      const studentEmail = String(student.email || student.studentEmail || "").trim();
+      const courseName = String(student.select_course || student.course || student.courseName || "").trim();
+
+      // Resolve the company/institute display name from the student's company id
+      let companyName = "";
+      const companyRef = student.companyName || student.companyId;
+      if (companyRef) {
+        const compOr: any[] = [{ _legacyId: String(companyRef) }];
+        if (mongoose.Types.ObjectId.isValid(String(companyRef)))
+          compOr.unshift({ _id: new mongoose.Types.ObjectId(String(companyRef)) });
+        const comp = await db.collection("batchcategories").findOne({ tenantId, $or: compOr });
+        companyName = String(comp?.categoryName || comp?.companyName || companyRef || "").trim();
+      }
+
+      const variables = { studentName, studentEmail, courseName, companyName };
+      const compiledSubject = TemplateEngine.compile(template.subject || "", variables);
+      const compiledBody = TemplateEngine.compile(template.body || "", variables);
+
+      if (preview) {
+        res.json({
+          success: true,
+          preview: { to: studentEmail, subject: compiledSubject, body: compiledBody },
+        });
+        return;
+      }
+
+      if (!studentEmail) {
+        res.status(400).json({ success: false, message: "This student has no email address on file" });
+        return;
+      }
+
+      const userId = (req as any).user?.userId;
+      const sentBy =
+        [(req as any).user?.firstName, (req as any).user?.lastName].filter(Boolean).join(" ") ||
+        undefined;
+
+      const ok = await emailService.send({
+        to: studentEmail,
+        subject: compiledSubject,
+        text: compiledBody,
+        html: compiledBody.replace(/\n/g, "<br>"),
+        tenantId,
+        sentBy: sentBy || userId,
+      });
+      if (!ok) {
+        res.status(502).json({ success: false, message: "Email could not be sent (check SMTP settings)" });
+        return;
+      }
+      res.json({ success: true, message: "Email sent to " + studentEmail });
+    } catch (err) {
+      logger.error({ err }, "send-to-student failed");
+      res.status(500).json({ success: false, message: (err as any)?.message || "Failed to send email" });
     }
   });
 
@@ -3629,6 +3811,30 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         const formId = body.formId;
         const companyId = body.companyId;
 
+        // Enforce mandatory enquiry custom fields (managed in the Custom Fields page,
+        // scoped per company + formType=enquiry). Values arrive as { fieldName: { newValue } }.
+        const enquiryCompanyId = companyId || body.companyName;
+        if (enquiryCompanyId && formId) {
+          const mandatoryEnquiry = await db
+            .collection("customfields")
+            .find({
+              tenantId,
+              companyId: enquiryCompanyId,
+              formType: "enquiry",
+              formId,
+              mandatory: true,
+            })
+            .toArray();
+          for (const def of mandatoryEnquiry) {
+            const entry = body[def.fieldName];
+            const v = entry && typeof entry === "object" ? entry.newValue : entry;
+            if (v === undefined || v === null || String(v).trim() === "") {
+              res.status(400).json({ success: false, message: `${def.fieldName} is required` });
+              return;
+            }
+          }
+        }
+
         const values = Object.keys(body)
           .filter(
             (key) => key !== "formId" && key !== "companyId" && key !== "0",
@@ -3680,6 +3886,184 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       } catch (err) {
         logger.error({ err }, "Legacy POST /submit-form/enquiry-form failed");
         res.status(500).json({ success: false, error: (err as any).message });
+      }
+    },
+  );
+
+  // ── Public Enquiry Form (NO AUTH) ──────────────────────────────────────────────
+  // Resolves the tenant from the company/form id in the URL so an enquiry form can be
+  // shared as a public link. The standalone page lives at /enquiry/<companyId>/<formId>.
+
+  // Standard fields every enquiry form has (rendered by the public page).
+  const STANDARD_ENQUIRY_FIELDS = [
+    { name: "Name", type: "text", mandatory: true },
+    { name: "Mobile Number", type: "text", mandatory: true },
+    { name: "Email", type: "email", mandatory: true },
+    { name: "City", type: "text", mandatory: false },
+  ];
+
+  async function resolvePublicEnquiry(db: any, mongoose: any, companyId: string, formId?: string) {
+    const { ObjectId } = mongoose.Types;
+    let formDoc: any = null;
+    if (formId) {
+      const or: any[] = [{ _legacyId: formId }];
+      if (ObjectId.isValid(formId)) or.push({ _id: new ObjectId(formId) });
+      formDoc = await db.collection("formdefinitions").findOne({ $or: or });
+    }
+    if (!formDoc) {
+      formDoc = await db.collection("formdefinitions").findOne({ companyId });
+    }
+    if (!formDoc) return null;
+    const tenantId = formDoc.tenantId;
+    // Company display name from batchcategories
+    const compOr: any[] = [{ _legacyId: companyId }];
+    if (ObjectId.isValid(companyId)) compOr.push({ _id: new ObjectId(companyId) });
+    const comp = await db.collection("batchcategories").findOne({ tenantId, $or: compOr });
+    const companyName =
+      comp?.companyName || comp?.categoryName || comp?.name || "Enquiry";
+    return { tenantId, companyName, formDoc };
+  }
+
+  gateway.get(
+    ["/public/enquiry/:companyId", "/public/enquiry/:companyId/:formId"],
+    async (req: Request, res: Response) => {
+      try {
+        const { default: mongoose } = await import("mongoose");
+        const db = mongoose.connection.db!;
+        const companyId = p(req, "companyId");
+        const formIdParam = req.params.formId ? p(req, "formId") : undefined;
+        const ctx = await resolvePublicEnquiry(db, mongoose, companyId, formIdParam);
+        if (!ctx) {
+          res.status(404).json({ success: false, message: "Enquiry form not found" });
+          return;
+        }
+        const forms = await db
+          .collection("formdefinitions")
+          .find({ tenantId: ctx.tenantId, companyId })
+          .toArray();
+        const formList = forms.map((f: any) => ({
+          id: f._legacyId || f._id.toString(),
+          name: f.formName || "Enquiry",
+        }));
+        const selectedFormId =
+          formIdParam ||
+          (ctx.formDoc._legacyId || ctx.formDoc._id.toString()) ||
+          (formList[0] && formList[0].id);
+
+        const ds = await db
+          .collection("defaultselects")
+          .find({ tenantId: ctx.tenantId })
+          .toArray();
+        const defaultSelects = ds.map((d: any) => ({
+          name: d.selectName,
+          type: "select",
+          mandatory: d.isMandatory ?? d.mandatory ?? false,
+          options: (d.options || []).map((o: any) =>
+            typeof o === "string" ? o : o.value ?? o.label,
+          ),
+        }));
+
+        const cfs = await db
+          .collection("customfields")
+          .find({
+            tenantId: ctx.tenantId,
+            companyId,
+            formType: "enquiry",
+            formId: selectedFormId,
+          })
+          .toArray();
+        const customFields = cfs.map((f: any) => ({
+          id: f._id.toString(),
+          fieldName: f.fieldName,
+          fieldType: f.fieldType,
+          options: f.options || [],
+          mandatory: f.mandatory ?? false,
+        }));
+
+        res.json({
+          success: true,
+          companyId,
+          companyName: ctx.companyName,
+          forms: formList,
+          selectedFormId,
+          selectedFormName:
+            (formList.find((f: any) => f.id === selectedFormId) || {}).name || "Enquiry",
+          standardFields: STANDARD_ENQUIRY_FIELDS,
+          defaultSelects,
+          customFields,
+        });
+      } catch (err) {
+        logger.error({ err }, "Public GET /public/enquiry failed");
+        res.status(500).json({ success: false, message: "Internal error" });
+      }
+    },
+  );
+
+  gateway.post(
+    "/public/enquiry/:companyId/:formId",
+    async (req: Request, res: Response) => {
+      try {
+        const { default: mongoose } = await import("mongoose");
+        const db = mongoose.connection.db!;
+        const companyId = p(req, "companyId");
+        const formId = p(req, "formId");
+        const ctx = await resolvePublicEnquiry(db, mongoose, companyId, formId);
+        if (!ctx) {
+          res.status(404).json({ success: false, message: "Enquiry form not found" });
+          return;
+        }
+
+        const incoming = Array.isArray((req.body as any)?.fields)
+          ? (req.body as any).fields
+          : [];
+        const valueByName: Record<string, string> = {};
+        for (const f of incoming) {
+          if (f && typeof f.name === "string") valueByName[f.name] = String(f.value ?? "").trim();
+        }
+
+        // Re-derive the required set server-side (don't trust the client).
+        const required: string[] = STANDARD_ENQUIRY_FIELDS.filter((f) => f.mandatory).map(
+          (f) => f.name,
+        );
+        const ds = await db
+          .collection("defaultselects")
+          .find({ tenantId: ctx.tenantId, $or: [{ isMandatory: true }, { mandatory: true }] })
+          .toArray();
+        ds.forEach((d: any) => required.push(d.selectName));
+        const cfs = await db
+          .collection("customfields")
+          .find({ tenantId: ctx.tenantId, companyId, formType: "enquiry", formId, mandatory: true })
+          .toArray();
+        cfs.forEach((f: any) => required.push(f.fieldName));
+
+        for (const name of required) {
+          if (!valueByName[name]) {
+            res.status(400).json({ success: false, message: `${name} is required` });
+            return;
+          }
+        }
+
+        const values = incoming.map((f: any) => ({
+          name: f.name,
+          type: f.type || "text",
+          value: String(f.value ?? ""),
+          mandatory: !!f.mandatory,
+          options: f.options || [],
+        }));
+
+        await db.collection("formsubmissions").insertOne({
+          tenantId: ctx.tenantId,
+          formId,
+          companyId,
+          values,
+          addedBy: "Form",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        res.json({ success: true, message: "Enquiry submitted successfully" });
+      } catch (err) {
+        logger.error({ err }, "Public POST /public/enquiry failed");
+        res.status(500).json({ success: false, message: "Internal error" });
       }
     },
   );
@@ -3936,6 +4320,9 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         .db!.collection("formlayouts")
         .find(query)
         .toArray();
+      // Return raw layout docs. The saved column ids are stale header labels that
+      // no longer match the table's accessors, so the frontend (correctly) falls
+      // back to showing ALL columns. Flattening them here hides valid fields.
       res.json({ success: true, columnData: docs });
     } catch (err) {
       logger.error({ err }, "Legacy columns query failed");
@@ -3960,7 +4347,27 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         .db!.collection("formlayouts")
         .find(query)
         .toArray();
-      res.json({ success: true, rowData: docs });
+      // Drop "degenerate" saved layouts whose rows expose no real data columns —
+      // only metadata (createdAt/updatedAt/companyId). The view-form-data table
+      // derives its field columns from the submissions, then lets a saved layout
+      // re-order them; but a layout that contains zero data columns can only WIPE
+      // every enquiry field (Name, Mobile, Email, …) for that form+role, leaving
+      // just createdAt/updatedAt. Such a layout is useless (and almost always
+      // corrupted from an old reorder), so omit it and let the frontend fall back
+      // to the full submission-derived column set (see GET /columns).
+      const META_COLS = new Set(["createdat", "updatedat", "companyid"]);
+      const meaningful = docs.filter((d: any) => {
+        const rows: any[] = Array.isArray(d.rows) ? d.rows : [];
+        return rows.some(
+          (r: any) =>
+            Array.isArray(r?.fields) &&
+            r.fields.some(
+              (f: any) =>
+                f?.name && !META_COLS.has(String(f.name).toLowerCase()),
+            ),
+        );
+      });
+      res.json({ success: true, rowData: meaningful });
     } catch (err) {
       logger.error({ err }, "Legacy rows query failed");
       res.json({ success: true, rowData: [] });
@@ -4019,6 +4426,39 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         .db!.collection("studentnotes")
         .find({ tenantId })
         .toArray();
+
+      // Backfill companyId for notes that lack it. Enquiry notes are saved with only
+      // a studentId (the enquiry submission's id) and no companyId, but the Reminder
+      // Task calendar filters notes by companyId === <urlCompanyId> — so a note without
+      // one never appears. Resolve it from the linked submission (studentId → its
+      // companyId) so those reminders show on the calendar.
+      const needIds = [
+        ...new Set(
+          docs
+            .filter((d: any) => !d.companyId && (d.studentId || d.userId))
+            .map((d: any) => String(d.studentId || d.userId)),
+        ),
+      ];
+      const subCompanyById = new Map<string, string>();
+      if (needIds.length) {
+        const objIds = needIds
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => new mongoose.Types.ObjectId(id));
+        const subs = await mongoose.connection
+          .db!.collection("formsubmissions")
+          .find({
+            tenantId,
+            $or: [{ _id: { $in: objIds } }, { _legacyId: { $in: needIds } }],
+          })
+          .toArray();
+        for (const s of subs as any[]) {
+          if (s.companyId == null) continue;
+          const companyId = String(s.companyId);
+          if (s._id) subCompanyById.set(s._id.toString(), companyId);
+          if (s._legacyId) subCompanyById.set(String(s._legacyId), companyId);
+        }
+      }
+
       res.json({
         success: true,
         allStudentNotes: docs.map((d: any) => ({
@@ -4028,7 +4468,10 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
           startTime: d.startTime || null,
           addedBy: d.addedBy || "",
           userId: d.userId || d.studentId || null,
-          companyId: d.companyId || null,
+          companyId:
+            d.companyId ||
+            subCompanyById.get(String(d.studentId || d.userId || "")) ||
+            null,
           createdAt: d.createdAt,
           updatedAt: d.updatedAt || d.createdAt,
           __v: 0,
@@ -7156,7 +7599,51 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
             }
           }
 
-          // Generate roll number
+          // Parse tenant-defined custom fields (Personal Details section). The
+          // frontend sends them as a single JSON object in `customFields`.
+          let customFields: Record<string, unknown> = {};
+          if (body.customFields) {
+            try {
+              const parsed =
+                typeof body.customFields === "string"
+                  ? JSON.parse(body.customFields)
+                  : body.customFields;
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                customFields = parsed;
+              }
+            } catch {
+              /* ignore malformed customFields */
+            }
+          }
+
+          // Server-side enforcement of mandatory custom fields, scoped to the
+          // student's company (body.companyName carries the company id).
+          const mandatoryDefs = await db
+            .collection("customfields")
+            .find({
+              tenantId,
+              companyId: body.companyName,
+              formType: "admission",
+              mandatory: true,
+            })
+            .toArray();
+          for (const def of mandatoryDefs) {
+            const v = customFields[def.fieldName];
+            if (v === undefined || v === null || String(v).trim() === "") {
+              res.status(400).json({
+                success: false,
+                message: `${def.fieldName} is required`,
+              });
+              return;
+            }
+          }
+
+          const now = new Date();
+
+          // Generate roll number. The `prefix` (e.g. "OSC") is configured per-tenant
+          // on the General Settings page; when set, the roll number is rendered as
+          // PREFIX/FY-START-YEAR/NUMBER (financial year from 1 April). Otherwise the
+          // legacy plain-number scheme is preserved.
           const counter = await db
             .collection("rollnumbercounters")
             .findOneAndUpdate(
@@ -7164,9 +7651,8 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
               { $inc: { seq: 1 } },
               { upsert: true, returnDocument: "after" },
             );
-          const rollNumber = String((counter?.seq || 1000) + 1000);
-
-          const now = new Date();
+          const rollSeq = (counter?.seq || 1000) + 1000;
+          const rollNumber = formatRollNumber(counter?.prefix || "", rollSeq, now);
           const imagePath = (req as any).file
             ? `students/${(req as any).file.filename}`
             : body.image || "";
@@ -7240,6 +7726,8 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
             panNo:            body.panNo || "",
             panStatus:        body.panStatus || "",
             medicalHistory:   body.medicalHistory || "",
+            // Tenant-defined custom admission fields (Personal Details section)
+            customFields,
           };
 
           const result = await db.collection("students").insertOne(studentDoc);

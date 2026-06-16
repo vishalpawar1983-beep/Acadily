@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 export const createCustomFieldSchema = z.object({
   body: z.object({
+    companyId: z.string().min(1, 'Company is required'),
+    formType: z.enum(['admission', 'enquiry']).optional(),
+    formId: z.string().optional(),
     fieldName: z.string().min(1, 'Field name is required').max(200),
     fieldType: z.enum([
       'text',
@@ -61,6 +64,9 @@ export const deleteCustomFieldSchema = z.object({
 
 export const listCustomFieldsSchema = z.object({
   query: z.object({
+    companyId: z.string().optional(),
+    formType: z.enum(['admission', 'enquiry']).optional(),
+    formId: z.string().optional(),
     skip: z.coerce.number().int().min(0).optional(),
     limit: z.coerce.number().int().min(1).max(100).optional(),
   }),

@@ -18,7 +18,9 @@ const emailTemplateSchema = new Schema<IEmailTemplateDocument>(
     body: { type: String, required: true },
     isActive: { type: Boolean, default: true },
   },
-  { timestamps: true },
+  // Dedicated collection so user-defined custom templates are fully isolated from
+  // the fixed `emailtemplates` collection (the legacy over-due/cancellation templates).
+  { timestamps: true, collection: 'customemailtemplates' },
 );
 
 emailTemplateSchema.index({ tenantId: 1, templateName: 1 }, { unique: true });

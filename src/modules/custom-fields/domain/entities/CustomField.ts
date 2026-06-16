@@ -1,7 +1,12 @@
 import { AggregateRoot } from '../../../../shared/domain/AggregateRoot.js';
 
+export type CustomFieldFormType = 'admission' | 'enquiry';
+
 interface CustomFieldProps {
   tenantId: string;
+  companyId?: string;
+  formType: CustomFieldFormType;
+  formId?: string;
   fieldName: string;
   fieldType: 'text' | 'number' | 'select' | 'date' | 'checkbox' | 'email' | 'textarea' | 'radio' | 'url' | 'currency';
   options: string[];
@@ -14,6 +19,9 @@ interface CustomFieldProps {
 
 export interface CreateCustomFieldInput {
   tenantId: string;
+  companyId?: string;
+  formType?: CustomFieldFormType;
+  formId?: string;
   fieldName: string;
   fieldType: CustomFieldProps['fieldType'];
   options?: string[];
@@ -25,6 +33,15 @@ export interface CreateCustomFieldInput {
 export class CustomField extends AggregateRoot<CustomFieldProps> {
   get tenantId(): string {
     return this.props.tenantId;
+  }
+  get companyId(): string | undefined {
+    return this.props.companyId;
+  }
+  get formType(): CustomFieldFormType {
+    return this.props.formType;
+  }
+  get formId(): string | undefined {
+    return this.props.formId;
   }
   get fieldName(): string {
     return this.props.fieldName;
@@ -70,6 +87,9 @@ export class CustomField extends AggregateRoot<CustomFieldProps> {
     return new CustomField(
       {
         tenantId: input.tenantId,
+        companyId: input.companyId,
+        formType: input.formType ?? 'admission',
+        formId: input.formId,
         fieldName: input.fieldName,
         fieldType: input.fieldType,
         options: input.options ?? [],
@@ -87,6 +107,9 @@ export class CustomField extends AggregateRoot<CustomFieldProps> {
     id: string,
     props: {
       tenantId: string;
+      companyId?: string;
+      formType: CustomFieldFormType;
+      formId?: string;
       fieldName: string;
       fieldType: CustomFieldProps['fieldType'];
       options: string[];

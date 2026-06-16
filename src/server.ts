@@ -275,6 +275,14 @@ export function createServer() {
   const publicPath = path.join(__dirname, "..", "public");
   app.use(express.static(frontendBuildPath, { etag: true, lastModified: true, maxAge: 0 }));
   app.use(express.static(publicPath, { etag: true, lastModified: true, maxAge: 0, extensions: ['html'] }));
+
+  // ── Public Enquiry Form (no login) ──
+  // Shareable link: /enquiry/<companyId>/<formId> (formId optional). The standalone
+  // page reads the ids from the URL and talks to /api/public/enquiry/*.
+  app.get(["/enquiry/:companyId", "/enquiry/:companyId/:formId"], (_req, res) => {
+    res.sendFile(path.join(publicPath, "enquiry-form.html"));
+  });
+
   app.get("*", (_req, res, next) => {
     // Let API 404s fall through to error handler
     if (_req.path.startsWith("/api")) return next();

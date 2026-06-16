@@ -20,13 +20,20 @@ export class IssueController {
       const tenantId = req.tenantContext?.tenantId;
       if (!tenantId) return next(new ValidationError('Tenant context required'));
 
+      // The legacy student-profile note form sends only { particulars, studentId },
+      // so default addedBy to the authenticated user's name (the JWT carries it).
+      const addedBy =
+        req.body.addedBy ||
+        [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') ||
+        'User';
+
       const useCase = new CreateIssue(issueRepo);
       const result = await useCase.execute({
         tenantId,
         studentId: req.body.studentId,
         date: req.body.date,
         particulars: req.body.particulars,
-        addedBy: req.body.addedBy,
+        addedBy,
         showOnDashboard: req.body.showOnDashboard,
         status: req.body.status,
       });

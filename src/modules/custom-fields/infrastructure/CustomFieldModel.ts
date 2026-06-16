@@ -2,6 +2,9 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ICustomFieldDocument extends Document {
   tenantId: string;
+  companyId?: string;
+  formType: 'admission' | 'enquiry';
+  formId?: string;
   fieldName: string;
   fieldType: string;
   options: string[];
@@ -15,6 +18,9 @@ export interface ICustomFieldDocument extends Document {
 const customFieldSchema = new Schema<ICustomFieldDocument>(
   {
     tenantId: { type: String, required: true, index: true },
+    companyId: { type: String, index: true },
+    formType: { type: String, enum: ['admission', 'enquiry'], default: 'admission', index: true },
+    formId: { type: String, index: true },
     fieldName: { type: String, required: true },
     fieldType: {
       type: String,
@@ -29,7 +35,10 @@ const customFieldSchema = new Schema<ICustomFieldDocument>(
   { timestamps: true },
 );
 
-customFieldSchema.index({ tenantId: 1, fieldName: 1 }, { unique: true });
+// Scope queries by tenant + company. Uniqueness of fieldName within a company is
+// enforced at the application layer (CreateCustomField) — not as a DB unique index,
+// since pre-existing migrated fields without a companyId would otherwise collide.
+customFieldSchema.index({ tenantId: 1, companyId: 1 });
 
 export const CustomFieldModel = mongoose.model<ICustomFieldDocument>(
   'CustomField',

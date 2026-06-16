@@ -1,6 +1,9 @@
 import type { CustomField } from '../entities/CustomField.js';
 
 export interface FindAllCustomFieldsOptions {
+  companyId?: string;
+  formType?: 'admission' | 'enquiry';
+  formId?: string;
   skip?: number;
   limit?: number;
 }

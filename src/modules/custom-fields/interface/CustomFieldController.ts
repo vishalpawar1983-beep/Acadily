@@ -19,6 +19,9 @@ export class CustomFieldController {
       const useCase = new CreateCustomField(repo);
       const result = await useCase.execute({
         tenantId,
+        companyId: req.body.companyId,
+        formType: req.body.formType,
+        formId: req.body.formId,
         fieldName: req.body.fieldName,
         fieldType: req.body.fieldType,
         options: req.body.options,
@@ -40,6 +43,11 @@ export class CustomFieldController {
       const useCase = new ListCustomFields(repo);
       const result = await useCase.execute({
         tenantId,
+        companyId: req.query.companyId ? String(req.query.companyId) : undefined,
+        formType: req.query.formType
+          ? (String(req.query.formType) as 'admission' | 'enquiry')
+          : undefined,
+        formId: req.query.formId ? String(req.query.formId) : undefined,
         skip: req.query.skip ? Number(req.query.skip) : undefined,
         limit: req.query.limit ? Number(req.query.limit) : undefined,
       });
