@@ -927,8 +927,12 @@
     }
   });
 
-  // ── Hide the legacy "Customized Fields" builder page ─────────────────────────────
-  // Replaced by the new Custom Fields manager (Settings → Custom Fields).
+  // ── Legacy "Customized Fields" builder: add a guidance bar (do NOT hide it) ───────
+  // This card is the legacy custom-field builder AND the editor that opens when you
+  // click the pencil next to a built-in select (Lead Source / Lead Status) to edit its
+  // dropdown options. We must NOT hide it (doing so broke option editing) — instead we
+  // add a slim bar above it pointing new custom fields to Settings → Custom Fields and
+  // keeping the Copy Public Link shortcut. No duplicate "Customized Fields" heading.
   function hideLegacyBuilder() {
     var headers = document.querySelectorAll('h3.fw-bolder');
     for (var i = 0; i < headers.length; i++) {
@@ -936,16 +940,14 @@
       if (h.textContent.indexOf('Customized Fields') === -1) continue;
       var card = h.closest('.card');
       if (!card || card.id === 'cf-legacy-note' || card.closest('#' + MODAL_ID)) continue;
-      if (card.style.display !== 'none') card.style.display = 'none';
       if (!document.getElementById('cf-legacy-note') && card.parentNode) {
         var note = document.createElement('div');
         note.id = 'cf-legacy-note';
         note.className = 'card mb-5 mb-xl-10';
         note.innerHTML =
           '<div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-4">' +
-            '<div><h3 class="fw-bolder m-0">Customized Fields</h3>' +
-              '<div class="text-muted mt-1">Custom fields are now managed from <strong>Settings &rarr; Custom Fields</strong>.</div>' +
-            '</div>' +
+            '<div class="text-muted">To add custom fields use <strong>Settings &rarr; Custom Fields</strong>. ' +
+              'The section below edits this form’s built-in fields and dropdown options.</div>' +
             '<div class="d-flex flex-wrap gap-3">' +
               '<button type="button" id="cf-copy-link" class="btn btn-light-primary">Copy Public Link</button>' +
               '<button type="button" id="cf-open-mgr" class="btn btn-primary">Open Custom Fields</button>' +
@@ -968,28 +970,14 @@
     }
   }
 
-  // ── Route guard: redirect the deprecated "Edit Form" page ─────────────────────────
-  // The "Edit Form" pencil in the forms list opens /update-form/<formId>, a legacy
-  // builder that renders only Name/Mobile/City/Email — it shows neither Lead Source /
-  // Lead Status nor the form's custom fields. The form-name view /profile-form/<formId>
-  // is the working editor (edit form name, edit dropdown options, shows custom fields),
-  // so send "Edit Form" there instead.
-  function redirectLegacyEditForm() {
-    var m = location.pathname.match(/^\/update-form\/([a-f0-9]{24})/i);
-    if (m) { location.replace('/profile-form/' + m[1]); return true; }
-    return false;
-  }
-
   // ── Boot ──────────────────────────────────────────────────────────────────────
   var observer = new MutationObserver(function () {
-    if (redirectLegacyEditForm()) return;
     injectMenu();
     hideLegacyBuilder();
     maybeRender();
   });
 
   function start() {
-    if (redirectLegacyEditForm()) return;
     observer.observe(document.body, { childList: true, subtree: true });
     loadCompanies();
     injectMenu();
