@@ -789,11 +789,9 @@ const routeMappings: RouteMapping[] = [
   // GET /receipt-approval  — explicit handler below (populates reciept from coursefees/feepayments)
 
   // ── Commissions ──
-  {
-    legacyMethod: "POST",
-    legacyPath: "/students/commission",
-    newPath: "/api/v1/commissions",
-  },
+  // POST/PUT/DELETE /students/commission — explicit handlers below. The DDD
+  // commission model has no companyId/narration, but the daybook total filters
+  // rows by companyId, so commissions must persist companyId to count.
 
   // ── Completions ──
   {
@@ -6640,6 +6638,146 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
     },
   );
 
+  // ── Commission create ──
+  // Explicit handler (not the DDD proxy) so we persist companyId + narration:
+  // the daybook total filters rows by companyId, so a commission without one
+  // would never count against a company's revenue. The frontend already sends
+  // companyId (the student's company) and the note as "commissionNaretion".
+  function resolveUserName(req: Request): string {
+    return (
+      [(req as any).user?.firstName, (req as any).user?.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || "app"
+    );
+  }
+
+  gateway.post("/students/commission", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+      }
+      const b = req.body as any;
+      const studentName = String(b.studentName || "").trim();
+      const commissionPersonName = String(b.commissionPersonName || "").trim();
+      if (!studentName || !commissionPersonName) {
+        res
+          .status(400)
+          .json({ message: "studentName and commissionPersonName are required" });
+        return;
+      }
+      const commissionAmount = Number(b.commissionAmount) || 0;
+      const commissionPaid = Number(b.commissionPaid) || 0;
+      const { default: mongoose } = await import("mongoose");
+      const now = new Date();
+      const doc: Record<string, any> = {
+        tenantId,
+        studentName,
+        commissionPersonName,
+        voucherNumber: b.voucherNumber ? String(b.voucherNumber) : "",
+        commissionAmount,
+        commissionPaid,
+        commissionRemaining: commissionAmount - commissionPaid,
+        commissionDate: b.commissionDate ? new Date(b.commissionDate) : now,
+        narration: String(b.narration ?? b.commissionNaretion ?? ""),
+        companyId: b.companyId ? String(b.companyId) : null,
+        dayBookAccountId: b.dayBookAccountId ? String(b.dayBookAccountId) : "",
+        createdBy: resolveUserName(req),
+        createdAt: now,
+        updatedAt: now,
+      };
+      const result = await mongoose.connection
+        .db!.collection("commissions")
+        .insertOne(doc);
+      res
+        .status(201)
+        .json({ success: true, data: { _id: result.insertedId.toString(), ...doc } });
+    } catch (err) {
+      logger.error({ err }, "Legacy POST /students/commission failed");
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ── Commission update (legacy ID support; recomputes remaining) ──
+  gateway.put("/students/commission/:id", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+      }
+      const { default: mongoose } = await import("mongoose");
+      const id = String(req.params.id);
+      const orClauses: any[] = [{ _legacyId: id }];
+      if (mongoose.Types.ObjectId.isValid(id))
+        orClauses.push({ _id: new mongoose.Types.ObjectId(id) });
+      const coll = mongoose.connection.db!.collection("commissions");
+      const existing = await coll.findOne({ tenantId, $or: orClauses });
+      if (!existing) {
+        res.status(404).json({ message: "Commission not found" });
+        return;
+      }
+      const b = req.body as any;
+      const set: Record<string, any> = { updatedAt: new Date() };
+      if (b.studentName !== undefined) set.studentName = String(b.studentName);
+      if (b.commissionPersonName !== undefined)
+        set.commissionPersonName = String(b.commissionPersonName);
+      if (b.voucherNumber !== undefined) set.voucherNumber = String(b.voucherNumber);
+      if (b.commissionDate !== undefined) set.commissionDate = new Date(b.commissionDate);
+      if (b.narration !== undefined || b.commissionNaretion !== undefined)
+        set.narration = String(b.narration ?? b.commissionNaretion ?? "");
+      if (b.companyId !== undefined) set.companyId = b.companyId ? String(b.companyId) : null;
+      const amount =
+        b.commissionAmount !== undefined
+          ? Number(b.commissionAmount) || 0
+          : Number(existing.commissionAmount) || 0;
+      const paid =
+        b.commissionPaid !== undefined
+          ? Number(b.commissionPaid) || 0
+          : Number(existing.commissionPaid) || 0;
+      set.commissionAmount = amount;
+      set.commissionPaid = paid;
+      set.commissionRemaining = amount - paid;
+      await coll.updateOne({ _id: existing._id }, { $set: set });
+      res.json({
+        success: true,
+        data: { _id: existing._legacyId || existing._id.toString(), ...existing, ...set },
+      });
+    } catch (err) {
+      logger.error({ err }, "Legacy PUT /students/commission/:id failed");
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ── Commission delete (legacy ID support) ──
+  gateway.delete("/students/commission/:id", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+      }
+      const { default: mongoose } = await import("mongoose");
+      const id = String(req.params.id);
+      const orClauses: any[] = [{ _legacyId: id }];
+      if (mongoose.Types.ObjectId.isValid(id))
+        orClauses.push({ _id: new mongoose.Types.ObjectId(id) });
+      const result = await mongoose.connection
+        .db!.collection("commissions")
+        .deleteOne({ tenantId, $or: orClauses });
+      if (result.deletedCount === 0) {
+        res.status(404).json({ message: "Commission not found" });
+        return;
+      }
+      res.json({ success: true, message: "Commission deleted" });
+    } catch (err) {
+      logger.error({ err }, "Legacy DELETE /students/commission/:id failed");
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // ── Course fees by student ID (raw coursefees collection with populated paymentOption) ──
   // Frontend expects: plain array with paymentOption as { _id, name, ... } object
   // ── All Course Fees (monthly report data) ──
@@ -9186,10 +9324,11 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       const { default: mongoose } = await import("mongoose");
       const db = mongoose.connection.db!;
 
-      const [entries, feePayments, accounts] = await Promise.all([
+      const [entries, feePayments, accounts, commissions] = await Promise.all([
         db.collection("daybookentries").find({ tenantId }).toArray(),
         db.collection("feepayments").find({ tenantId }).toArray(),
         db.collection("daybookaccounts").find({ tenantId }).toArray(),
+        db.collection("commissions").find({ tenantId }).toArray(),
       ]);
 
       // Build accountId → companyId and accountId → accountName lookups.
@@ -9279,8 +9418,50 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
           updatedAt: f.updatedAt || f.createdAt,
         }));
 
+      // Student commissions are an expense — surface them as debit rows so the
+      // daybook's net revenue (credit − debit) accounts for commission payouts.
+      // Cash basis: debit = amount actually paid out (commissionPaid), matching
+      // how fee rows use amountPaid. Commissions with nothing paid yet are no
+      // cash outflow and are skipped. companyId must be present or the row won't
+      // count toward a company's daybook total (which filters by companyId).
+      const commissionRows = commissions
+        .filter((c: any) => (Number(c.commissionPaid) || 0) > 0)
+        .map((c: any) => {
+          const sname = String(c.studentName || "");
+          const dashIdx = sname.lastIndexOf("-");
+          const displayName = dashIdx === -1 ? sname : sname.slice(0, dashIdx);
+          const roll = dashIdx === -1 ? "" : sname.slice(dashIdx + 1);
+          const person = String(c.commissionPersonName || "").trim();
+          const label = person ? "Commission to " + person : "Student Commission";
+          return {
+            _id: "commission-" + (c._legacyId || c._id.toString()),
+            dayBookAccountId: null,
+            accountName: "Student Commission",
+            accountType: "Commission",
+            companyId: c.companyId ? String(c.companyId) : null,
+            dayBookDatadate: c.commissionDate || c.createdAt,
+            debit: Number(c.commissionPaid) || 0,
+            credit: 0,
+            balance: 0,
+            narration: c.narration ? String(c.narration) : label,
+            naretion: c.narration ? String(c.narration) : label,
+            studentLateFees: 0,
+            studentInfo: null,
+            rollNo: roll,
+            StudentName: displayName,
+            reciptNumber: c.voucherNumber || "",
+            linkAccountId: "",
+            linkAccountName: "",
+            linkAccountType: "",
+            linkDayBookAccountData: "",
+            source: "commission",
+            createdAt: c.createdAt,
+            updatedAt: c.updatedAt || c.createdAt,
+          };
+        });
+
       // Merge and sort oldest-first (ascending by date, then by createdAt as tie-breaker)
-      const allRows = [...daybookRows, ...feeRows].sort((a: any, b: any) => {
+      const allRows = [...daybookRows, ...feeRows, ...commissionRows].sort((a: any, b: any) => {
         const da = new Date(a.dayBookDatadate).getTime();
         const db = new Date(b.dayBookDatadate).getTime();
         if (da !== db) return da - db;
@@ -9307,6 +9488,34 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       const { default: mongoose } = await import("mongoose");
       const id = p(req, "id");
       const body = req.body as any;
+
+      // Commission rows are synthesized from the commissions collection. Editing
+      // one from the daybook maps debit → commissionPaid (and narration/date).
+      if (id.startsWith("commission-")) {
+        const cid = id.slice("commission-".length);
+        const cOr: any[] = [{ _legacyId: cid }];
+        if (mongoose.Types.ObjectId.isValid(cid))
+          cOr.push({ _id: new mongoose.Types.ObjectId(cid) });
+        const coll = mongoose.connection.db!.collection("commissions");
+        const existing = await coll.findOne({ tenantId, $or: cOr });
+        if (!existing) {
+          res.status(404).json({ message: "Commission not found" });
+          return;
+        }
+        const cSet: Record<string, any> = { updatedAt: new Date() };
+        if (body.debit !== undefined) {
+          const paid = Number(body.debit) || 0;
+          cSet.commissionPaid = paid;
+          cSet.commissionRemaining = (Number(existing.commissionAmount) || 0) - paid;
+        }
+        if (body.narration !== undefined) cSet.narration = String(body.narration);
+        else if (body.naretion !== undefined) cSet.narration = String(body.naretion);
+        if (body.dayBookDatadate || body.date)
+          cSet.commissionDate = new Date(body.dayBookDatadate || body.date);
+        await coll.updateOne({ _id: existing._id }, { $set: cSet });
+        res.json({ _id: id, ...existing, ...cSet });
+        return;
+      }
 
       const updateFields: Record<string, any> = { updatedAt: new Date() };
       if (body.dayBookAccountId || body.accountId)
@@ -9365,6 +9574,25 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       }
       const { default: mongoose } = await import("mongoose");
       const id = p(req, "id");
+
+      // Commission rows are synthesized into the daybook from the commissions
+      // collection (id "commission-<commissionId>"). Deleting such a row deletes
+      // the underlying commission.
+      if (id.startsWith("commission-")) {
+        const cid = id.slice("commission-".length);
+        const cOr: any[] = [{ _legacyId: cid }];
+        if (mongoose.Types.ObjectId.isValid(cid))
+          cOr.push({ _id: new mongoose.Types.ObjectId(cid) });
+        const cRes = await mongoose.connection
+          .db!.collection("commissions")
+          .deleteOne({ tenantId, $or: cOr });
+        if (cRes.deletedCount === 0) {
+          res.status(404).json({ message: "Commission not found" });
+          return;
+        }
+        res.json({ success: true, message: "Commission deleted" });
+        return;
+      }
 
       const orClauses: any[] = [{ _legacyId: id }];
       if (mongoose.Types.ObjectId.isValid(id))
