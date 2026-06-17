@@ -3990,18 +3990,32 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
           (ctx.formDoc._legacyId || ctx.formDoc._id.toString()) ||
           (formList[0] && formList[0].id);
 
+        // Public walk-in enquiry form: some companies lock specific dropdowns to a
+        // single default value so customers can only submit walk-in queries. The full
+        // option list still exists for staff in the admin views — this only narrows the
+        // PUBLIC form. Keyed by companyId.
+        const PUBLIC_FORCED_SELECTS: Record<string, Record<string, string>> = {
+          "68b9d092d6bc3d1f1b826847": { "Lead Source": "Walk-in", "Lead Status": "Hot" },
+        };
+        const forcedSelects = PUBLIC_FORCED_SELECTS[companyId] || {};
+
         const ds = await db
           .collection("defaultselects")
           .find({ tenantId: ctx.tenantId })
           .toArray();
-        const defaultSelects = ds.map((d: any) => ({
-          name: d.selectName,
-          type: "select",
-          mandatory: d.isMandatory ?? d.mandatory ?? false,
-          options: (d.options || []).map((o: any) =>
+        const defaultSelects = ds.map((d: any) => {
+          const locked = forcedSelects[d.selectName];
+          const allOptions = (d.options || []).map((o: any) =>
             typeof o === "string" ? o : o.value ?? o.label,
-          ),
-        }));
+          );
+          return {
+            name: d.selectName,
+            type: "select",
+            mandatory: d.isMandatory ?? d.mandatory ?? false,
+            options: locked ? [locked] : allOptions,
+            defaultValue: locked || undefined,
+          };
+        });
 
         const cfs = await db
           .collection("customfields")
@@ -4011,6 +4025,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
             formType: "enquiry",
             formId: selectedFormId,
           })
+          .sort({ order: 1, createdAt: 1 })
           .toArray();
         const customFields = cfs.map((f: any) => ({
           id: f._id.toString(),

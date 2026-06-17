@@ -72,8 +72,12 @@
       switch(t){
         case 'textarea': inner='<textarea '+attrs+'></textarea>'; break;
         case 'select':
-          inner='<select '+attrs+'><option value="">-- Select --</option>'+
-            (f.options||[]).map(function(o){ var v=typeof o==='string'?o:(o.value||o.label); return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('')+'</select>';
+          // When the field has a defaultValue (e.g. a locked walk-in dropdown) pre-select
+          // it and omit the "-- Select --" placeholder so the value can't be changed.
+          var dv = f.defaultValue || '';
+          inner='<select '+attrs+'>'+
+            (dv ? '' : '<option value="">-- Select --</option>')+
+            (f.options||[]).map(function(o){ var v=typeof o==='string'?o:(o.value||o.label); return '<option value="'+esc(v)+'"'+(v===dv?' selected':'')+'>'+esc(v)+'</option>'; }).join('')+'</select>';
           break;
         case 'radio':
           inner='<div class="opts" '+attrs+'>'+(f.options||[]).map(function(o){ var v=typeof o==='string'?o:(o.value||o.label); return '<label><input type="radio" name="'+id+'" value="'+esc(v)+'">'+esc(v)+'</label>'; }).join('')+'</div>';
