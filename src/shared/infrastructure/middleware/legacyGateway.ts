@@ -6743,7 +6743,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       await coll.updateOne({ _id: existing._id }, { $set: set });
       res.json({
         success: true,
-        data: { _id: existing._legacyId || existing._id.toString(), ...existing, ...set },
+        data: { ...existing, ...set, _id: existing._legacyId || existing._id.toString() },
       });
     } catch (err) {
       logger.error({ err }, "Legacy PUT /students/commission/:id failed");
@@ -9513,7 +9513,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         if (body.dayBookDatadate || body.date)
           cSet.commissionDate = new Date(body.dayBookDatadate || body.date);
         await coll.updateOne({ _id: existing._id }, { $set: cSet });
-        res.json({ _id: id, ...existing, ...cSet });
+        res.json({ ...existing, ...cSet, _id: id });
         return;
       }
 
