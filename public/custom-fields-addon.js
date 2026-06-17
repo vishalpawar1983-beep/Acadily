@@ -968,14 +968,28 @@
     }
   }
 
+  // ── Route guard: redirect the deprecated "Edit Form" page ─────────────────────────
+  // The "Edit Form" pencil in the forms list opens /update-form/<formId>, a legacy
+  // builder that renders only Name/Mobile/City/Email — it shows neither Lead Source /
+  // Lead Status nor the form's custom fields. The form-name view /profile-form/<formId>
+  // is the working editor (edit form name, edit dropdown options, shows custom fields),
+  // so send "Edit Form" there instead.
+  function redirectLegacyEditForm() {
+    var m = location.pathname.match(/^\/update-form\/([a-f0-9]{24})/i);
+    if (m) { location.replace('/profile-form/' + m[1]); return true; }
+    return false;
+  }
+
   // ── Boot ──────────────────────────────────────────────────────────────────────
   var observer = new MutationObserver(function () {
+    if (redirectLegacyEditForm()) return;
     injectMenu();
     hideLegacyBuilder();
     maybeRender();
   });
 
   function start() {
+    if (redirectLegacyEditForm()) return;
     observer.observe(document.body, { childList: true, subtree: true });
     loadCompanies();
     injectMenu();
