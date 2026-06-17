@@ -3942,26 +3942,51 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
     { name: "City", type: "text", mandatory: false },
   ];
 
-  async function resolvePublicEnquiry(db: any, mongoose: any, companyId: string, formId?: string) {
+  // Resolve a public enquiry link. Both params may be a real id (_legacyId/_id) OR a
+  // slugified name, so links can be short & readable, e.g.
+  //   /enquiry/visual-media-academy/enquiry   (company slug / form slug)
+  // Returns the RESOLVED real ids so callers store/query with canonical values.
+  async function resolvePublicEnquiry(db: any, mongoose: any, companyParam: string, formParam?: string) {
     const { ObjectId } = mongoose.Types;
+    const slugify = (s: any) =>
+      String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+    // 1) Company — by id first, else by slugified name.
+    const compOr: any[] = [{ _legacyId: companyParam }];
+    if (ObjectId.isValid(companyParam)) compOr.push({ _id: new ObjectId(companyParam) });
+    let comp = await db.collection("batchcategories").findOne({ $or: compOr });
+    if (!comp) {
+      const target = slugify(companyParam);
+      const all = await db.collection("batchcategories").find({}).toArray();
+      comp =
+        all.find((c: any) => slugify(c.categoryName || c.companyName || c.name) === target) || null;
+    }
+    if (!comp) return null;
+    const tenantId = comp.tenantId;
+    const companyId = comp._legacyId ? String(comp._legacyId) : comp._id.toString();
+    const companyName = comp.companyName || comp.categoryName || comp.name || "Enquiry";
+
+    // 2) Form within this company — by id, else by slugified name, else the first form.
     let formDoc: any = null;
-    if (formId) {
-      const or: any[] = [{ _legacyId: formId }];
-      if (ObjectId.isValid(formId)) or.push({ _id: new ObjectId(formId) });
-      formDoc = await db.collection("formdefinitions").findOne({ $or: or });
+    if (formParam) {
+      const or: any[] = [{ _legacyId: formParam }];
+      if (ObjectId.isValid(formParam)) or.push({ _id: new ObjectId(formParam) });
+      formDoc = await db.collection("formdefinitions").findOne({ tenantId, companyId, $or: or });
+      if (!formDoc) {
+        const target = slugify(formParam);
+        const forms = await db
+          .collection("formdefinitions")
+          .find({ tenantId, companyId })
+          .toArray();
+        formDoc = forms.find((f: any) => slugify(f.formName) === target) || null;
+      }
     }
     if (!formDoc) {
-      formDoc = await db.collection("formdefinitions").findOne({ companyId });
+      formDoc = await db.collection("formdefinitions").findOne({ tenantId, companyId });
     }
     if (!formDoc) return null;
-    const tenantId = formDoc.tenantId;
-    // Company display name from batchcategories
-    const compOr: any[] = [{ _legacyId: companyId }];
-    if (ObjectId.isValid(companyId)) compOr.push({ _id: new ObjectId(companyId) });
-    const comp = await db.collection("batchcategories").findOne({ tenantId, $or: compOr });
-    const companyName =
-      comp?.companyName || comp?.categoryName || comp?.name || "Enquiry";
-    return { tenantId, companyName, formDoc };
+    const formId = formDoc._legacyId ? String(formDoc._legacyId) : formDoc._id.toString();
+    return { tenantId, companyName, companyId, formId, formDoc };
   }
 
   gateway.get(
@@ -3977,18 +4002,17 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
           res.status(404).json({ success: false, message: "Enquiry form not found" });
           return;
         }
+        // Use the RESOLVED ids (params may have been slugs).
+        const companyResolved = ctx.companyId;
+        const selectedFormId = ctx.formId;
         const forms = await db
           .collection("formdefinitions")
-          .find({ tenantId: ctx.tenantId, companyId })
+          .find({ tenantId: ctx.tenantId, companyId: companyResolved })
           .toArray();
         const formList = forms.map((f: any) => ({
           id: f._legacyId || f._id.toString(),
           name: f.formName || "Enquiry",
         }));
-        const selectedFormId =
-          formIdParam ||
-          (ctx.formDoc._legacyId || ctx.formDoc._id.toString()) ||
-          (formList[0] && formList[0].id);
 
         // Public walk-in enquiry form: some companies lock specific dropdowns to a
         // single default value so customers can only submit walk-in queries. The full
@@ -3997,7 +4021,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         const PUBLIC_FORCED_SELECTS: Record<string, Record<string, string>> = {
           "68b9d092d6bc3d1f1b826847": { "Lead Source": "Walk-in", "Lead Status": "Hot" },
         };
-        const forcedSelects = PUBLIC_FORCED_SELECTS[companyId] || {};
+        const forcedSelects = PUBLIC_FORCED_SELECTS[companyResolved] || {};
 
         const ds = await db
           .collection("defaultselects")
@@ -4021,7 +4045,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
           .collection("customfields")
           .find({
             tenantId: ctx.tenantId,
-            companyId,
+            companyId: companyResolved,
             formType: "enquiry",
             formId: selectedFormId,
           })
@@ -4037,7 +4061,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
 
         res.json({
           success: true,
-          companyId,
+          companyId: companyResolved,
           companyName: ctx.companyName,
           forms: formList,
           selectedFormId,
@@ -4060,13 +4084,19 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       try {
         const { default: mongoose } = await import("mongoose");
         const db = mongoose.connection.db!;
-        const companyId = p(req, "companyId");
-        const formId = p(req, "formId");
-        const ctx = await resolvePublicEnquiry(db, mongoose, companyId, formId);
+        const ctx = await resolvePublicEnquiry(
+          db,
+          mongoose,
+          p(req, "companyId"),
+          p(req, "formId"),
+        );
         if (!ctx) {
           res.status(404).json({ success: false, message: "Enquiry form not found" });
           return;
         }
+        // Resolved real ids (params may have been slugs).
+        const companyId = ctx.companyId;
+        const formId = ctx.formId;
 
         const incoming = Array.isArray((req.body as any)?.fields)
           ? (req.body as any).fields

@@ -194,16 +194,27 @@
     });
   }
 
-  // Build the public enquiry link for the form currently open in the editor.
+  function slugify(s) {
+    return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  // Build a short, readable public enquiry link for the form currently open in the
+  // editor: /enquiry/<company-slug>/<form-slug> (e.g. /enquiry/visual-media-academy/enquiry).
+  // The server resolves these slugs (falling back to ids), so old id links still work.
   // Form-editor URLs (/profile-form, /add-form, /enquiry-form) carry the FORM id.
   function buildPublicLink(cb) {
     var m = (location.pathname + location.hash).match(/\/(?:profile-form|add-form|enquiry-form)\/([^\/?#]+)/);
     var formId = m ? decodeURIComponent(m[1]) : null;
     if (!formId) { cb(null); return; }
-    loadAllForms().then(function (all) {
+    Promise.all([loadAllForms(), loadCompanies()]).then(function (res) {
+      var all = res[0], companies = res[1];
       var form = all.find(function (f) { return f._id === formId; });
       var companyId = form ? form.companyName : null;
-      cb(companyId ? (location.origin + '/enquiry/' + companyId + '/' + formId) : null);
+      if (!companyId) { cb(null); return; }
+      var comp = companies.find(function (c) { return c._id === companyId; });
+      var cSlug = comp ? slugify(comp.companyName) : companyId;
+      var fSlug = form && form.formName ? slugify(form.formName) : formId;
+      cb(location.origin + '/enquiry/' + cSlug + '/' + fSlug);
     }).catch(function () { cb(null); });
   }
 
@@ -982,6 +993,19 @@
       if (h.textContent.indexOf('Customized Fields') === -1) continue;
       var card = h.closest('.card');
       if (!card || card.id === 'cf-legacy-note' || card.closest('#' + MODAL_ID)) continue;
+
+      // Custom fields are managed only via Settings → Custom Fields, so strip the
+      // legacy card's per-field Edit/Delete icons and the "Add Field" button. The
+      // per-select option editor (Lead Source / Lead Status pencils) opens a separate
+      // modal overlay (.modal-overlay) with its own controls and is left intact.
+      card.querySelectorAll('.col-lg-8 a.btn-icon, .col-lg-8 button.btn-icon').forEach(function (b) {
+        var ic = (b.querySelector('i') || {}).className || '';
+        if (/ki-pencil|ki-trash/.test(ic)) b.style.display = 'none';
+      });
+      card.querySelectorAll('button, a').forEach(function (b) {
+        if (/^\s*add field\s*$/i.test(b.textContent || '')) b.style.display = 'none';
+      });
+
       if (!document.getElementById('cf-legacy-note') && card.parentNode) {
         var note = document.createElement('div');
         note.id = 'cf-legacy-note';
