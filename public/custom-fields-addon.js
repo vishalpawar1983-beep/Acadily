@@ -987,12 +987,14 @@
   // add a slim bar above it pointing new custom fields to Settings → Custom Fields and
   // keeping the Copy Public Link shortcut. No duplicate "Customized Fields" heading.
   function hideLegacyBuilder() {
+    var found = false;
     var headers = document.querySelectorAll('h3.fw-bolder');
     for (var i = 0; i < headers.length; i++) {
       var h = headers[i];
       if (h.textContent.indexOf('Customized Fields') === -1) continue;
       var card = h.closest('.card');
       if (!card || card.id === 'cf-legacy-note' || card.closest('#' + MODAL_ID)) continue;
+      found = true;
 
       // Custom fields are managed only via Settings → Custom Fields, so strip the
       // legacy card's per-field Edit/Delete icons and the "Add Field" button. The
@@ -1033,6 +1035,14 @@
           });
         });
       }
+    }
+
+    // The guidance bar is injected next to a "Customized Fields" card. On SPA
+    // navigation that card disappears but the injected bar would otherwise linger on
+    // unrelated pages (DayBook, etc.) — so remove it whenever no such card is present.
+    if (!found) {
+      var stale = document.getElementById('cf-legacy-note');
+      if (stale) stale.remove();
     }
   }
 
