@@ -10,6 +10,7 @@ export interface ICustomFieldDocument extends Document {
   options: string[];
   mandatory: boolean;
   defaultValue?: string;
+  order: number;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -30,6 +31,9 @@ const customFieldSchema = new Schema<ICustomFieldDocument>(
     options: [{ type: String }],
     mandatory: { type: Boolean, default: false },
     defaultValue: { type: String },
+    // Display order within a (company + formType + formId) scope. New/unordered
+    // fields default high so they append at the end until explicitly reordered.
+    order: { type: Number, default: 1000000, index: true },
     createdBy: { type: String, required: true },
   },
   { timestamps: true },

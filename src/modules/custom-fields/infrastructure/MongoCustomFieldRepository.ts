@@ -28,7 +28,7 @@ export class MongoCustomFieldRepository implements ICustomFieldRepository {
       CustomFieldModel.find(filter)
         .skip(options.skip ?? 0)
         .limit(options.limit ?? 20)
-        .sort({ createdAt: -1 })
+        .sort({ order: 1, createdAt: 1 })
         .exec(),
       CustomFieldModel.countDocuments(filter).exec(),
     ]);

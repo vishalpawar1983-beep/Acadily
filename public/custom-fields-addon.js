@@ -112,6 +112,24 @@
     });
   }
 
+  // Persist a new field order. Posts to the legacy gateway (not /api/v1) so both
+  // read paths — GET /custom-field (enquiry form bundle) and the DDD list (admission
+  // + this modal) — pick up the order, which they sort by.
+  function reorderFields(ids) {
+    return fetch('/api/custom-field/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: getAuthHeader() },
+      body: JSON.stringify({ ids: ids }),
+    }).then(function (r) {
+      return r.json().then(function (b) {
+        if (!r.ok || !b || b.success === false) {
+          throw new Error((b && b.message) || ('HTTP ' + r.status));
+        }
+        return b;
+      });
+    });
+  }
+
   var companiesPromise = null;
   function loadCompanies() {
     // Only treat a NON-EMPTY result as cached. An empty array (e.g. the call fired
@@ -342,8 +360,12 @@
             ' fields here yet. Click “Add Field”.</td></tr>';
           return;
         }
-        tbody.innerHTML = fields.map(function (f) {
+        tbody.innerHTML = fields.map(function (f, i) {
           var typeLabel = (FIELD_TYPES.find(function (t) { return t.v === f.fieldType; }) || {}).label || f.fieldType;
+          var up = '<button type="button" class="btn btn-icon btn-sm btn-light cf-up" data-idx="' + i + '"' +
+            (i === 0 ? ' disabled' : '') + ' title="Move up">&uarr;</button>';
+          var down = '<button type="button" class="btn btn-icon btn-sm btn-light cf-down me-3" data-idx="' + i + '"' +
+            (i === fields.length - 1 ? ' disabled' : '') + ' title="Move down">&darr;</button>';
           return '<tr>' +
             '<td class="fw-bold">' + esc(f.fieldName) + '</td>' +
             '<td>' + esc(typeLabel) + '</td>' +
@@ -351,11 +373,31 @@
             '<td class="text-center">' + (f.mandatory
               ? '<span class="badge badge-light-danger">Required</span>'
               : '<span class="badge badge-light">Optional</span>') + '</td>' +
-            '<td class="text-end">' +
+            '<td class="text-end text-nowrap">' + up + down +
               '<button type="button" class="btn btn-sm btn-light-primary me-2 cf-edit" data-id="' + esc(f.id) + '">Edit</button>' +
               '<button type="button" class="btn btn-sm btn-light-danger cf-del" data-id="' + esc(f.id) + '">Delete</button>' +
             '</td></tr>';
         }).join('');
+
+        // Move a field up/down: swap with its neighbour, persist the new order, reload.
+        function move(idx, delta) {
+          var j = idx + delta;
+          if (j < 0 || j >= fields.length) return;
+          var ids = fields.map(function (x) { return x.id; });
+          var tmp = ids[idx]; ids[idx] = ids[j]; ids[j] = tmp;
+          reorderFields(ids)
+            .then(function () {
+              delete fieldsCache[ckey(scopeCompany, scopeType, scopeForm)];
+              refreshTable();
+            })
+            .catch(function (err) { showToast(err.message, true); });
+        }
+        tbody.querySelectorAll('.cf-up').forEach(function (btn) {
+          btn.addEventListener('click', function () { move(Number(btn.dataset.idx), -1); });
+        });
+        tbody.querySelectorAll('.cf-down').forEach(function (btn) {
+          btn.addEventListener('click', function () { move(Number(btn.dataset.idx), 1); });
+        });
 
         tbody.querySelectorAll('.cf-edit').forEach(function (btn) {
           btn.addEventListener('click', function () {

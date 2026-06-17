@@ -3337,6 +3337,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       const docs = await mongoose.connection
         .db!.collection("customfields")
         .find({ tenantId })
+        .sort({ order: 1, createdAt: 1 })
         .toArray();
       res.json(
         docs.map((d: any) => {
@@ -3372,6 +3373,47 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
     } catch (err) {
       logger.error({ err }, "Legacy custom-field query failed");
       res.json([]);
+    }
+  });
+
+  // ── Reorder custom fields ──
+  // Body: { ids: [orderedFieldId, ...] }. Persists the display order by setting
+  // `order` = position for each field. Used by the Custom Fields manager's
+  // up/down controls; honoured by both read paths (GET /custom-field and the DDD
+  // /api/v1/custom-fields list, which sort by { order, createdAt }).
+  gateway.post("/custom-field/reorder", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.status(401).json({ success: false });
+        return;
+      }
+      const { default: mongoose } = await import("mongoose");
+      const db = mongoose.connection.db!;
+      const ids: string[] = Array.isArray((req.body as any)?.ids)
+        ? (req.body as any).ids.map(String)
+        : [];
+      if (!ids.length) {
+        res.status(400).json({ success: false, message: "ids array is required" });
+        return;
+      }
+      await Promise.all(
+        ids.map((id, index) => {
+          const or: any[] = [{ _legacyId: id }];
+          if (mongoose.Types.ObjectId.isValid(id))
+            or.push({ _id: new mongoose.Types.ObjectId(id) });
+          return db
+            .collection("customfields")
+            .updateOne(
+              { tenantId, $or: or },
+              { $set: { order: index, updatedAt: new Date() } },
+            );
+        }),
+      );
+      res.json({ success: true, message: "Order saved" });
+    } catch (err) {
+      logger.error({ err }, "Legacy POST /custom-field/reorder failed");
+      res.status(500).json({ success: false, message: "Internal error" });
     }
   });
 
