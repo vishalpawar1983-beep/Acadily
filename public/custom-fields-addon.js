@@ -559,6 +559,25 @@
     if (!companiesCache || !companiesCache.length) return null;
     var byId = {}, byName = {};
     companiesCache.forEach(function (c) { byId[c._id] = c._id; byName[c.companyName.trim().toLowerCase()] = c._id; });
+
+    // The admission add/edit routes carry the company id directly in the URL:
+    //   /addmission-form/<companyId>  (Add New Student)
+    //   /update-addmission-form/<companyId>  (Edit Profile)
+    // These pages have no company <select> (the company is fixed), so the URL is the
+    // reliable source. Check it first; fall back to a company-looking select otherwise.
+    var um = (location.pathname + location.hash)
+      .match(/\/(?:update-addmission-form|addmission-form)\/([a-f0-9]{24})/i);
+    if (um && byId[um[1]]) return byId[um[1]];
+
+    // On the student profile page (/profile/student/<id>) the URL carries the student
+    // id, not the company. The page links to /addmission-form/<companyId> (its Edit
+    // action), so read the company id from that link.
+    var editLink = document.querySelector('a[href*="addmission-form/"]');
+    if (editLink) {
+      var dm = (editLink.getAttribute('href') || '').match(/addmission-form\/([a-f0-9]{24})/i);
+      if (dm && byId[dm[1]]) return byId[dm[1]];
+    }
+
     var selects = document.querySelectorAll('select');
     for (var i = 0; i < selects.length; i++) {
       var sel = selects[i];
@@ -706,19 +725,82 @@
       return;
     }
 
-    // Enquiry form? Resolve company + the active form, then load that form's fields.
+    // Enquiry form: the application bundle now renders enquiry custom fields natively
+    // in the main form (and submits them to /api/submit-form as { newValue, type }),
+    // so the addon must NOT render an "Additional Details" copy — doing so produced
+    // duplicate fields on the page. (The addon's submit hook below targets a different
+    // URL and never fired for enquiry, so its copy was non-functional anyway.) We still
+    // detect the enquiry page here to avoid falling through to the admission branch, and
+    // remove any section left over from a previously cached addon version.
     if (getEnquiryRawId()) {
-      resolveEnquiryContext().then(function (ctx) {
-        if (!ctx) return;
-        renderContext(ENQ_SECTION_ID, 'Additional Details', ctx.companyId, 'enquiry', ctx.formId, enquiryAnchor);
-      });
+      var staleEnq = document.getElementById(ENQ_SECTION_ID);
+      if (staleEnq) staleEnq.remove();
       return;
     }
 
     // Admission form? (detected by the Qualification anchor)
     if (admissionAnchor()) {
       renderContext(ADM_SECTION_ID, 'Personal Details', getAdmissionCompanyId(), 'admission', null, admissionAnchor);
+      // On the student profile (Edit Profile) page, prefill the inputs with the
+      // student's saved custom-field values so editing shows existing data.
+      prefillAdmissionValues();
     }
+  }
+
+  // ── Preload saved admission custom-field values (Edit Profile) ────────────────────
+  // The profile page URL is /profile/student/<studentId>; fetch that student and fill
+  // the Personal Details inputs by field name. Marking the section .prefilled also
+  // authorises the save hook to inject custom fields into the PUT (see send()).
+  var studentCfCache = {};   // studentId -> customFields object
+  var prefillInflight = {};  // studentId -> bool
+
+  function getProfileStudentId() {
+    var m = location.pathname.match(/\/profile\/student\/([a-f0-9]{24})/i);
+    return m ? m[1] : null;
+  }
+
+  function applyPrefill(section, cf) {
+    section.querySelectorAll('[data-cf-field]').forEach(function (group) {
+      var ctrl = group.querySelector('[data-cf-name]');
+      if (!ctrl) return;
+      var val = cf[ctrl.getAttribute('data-cf-name')];
+      if (val === undefined || val === null) return;
+      var type = ctrl.getAttribute('data-cf-type');
+      if (type === 'radio') {
+        var r = group.querySelector('input[type=radio][value="' + String(val).replace(/"/g, '\\"') + '"]');
+        if (r) r.checked = true;
+      } else if (type === 'checkbox') {
+        var boxes = group.querySelectorAll('input[type=checkbox]');
+        if (boxes.length > 1) {
+          var set = String(val).split(',').map(function (s) { return s.trim(); });
+          boxes.forEach(function (b) { b.checked = set.indexOf(b.value) !== -1; });
+        } else if (boxes.length === 1) {
+          boxes[0].checked = !!val && String(val).toLowerCase() !== 'no';
+        }
+      } else {
+        ctrl.value = val;
+      }
+    });
+  }
+
+  function prefillAdmissionValues() {
+    var sid = getProfileStudentId();
+    if (!sid) return;
+    var section = document.getElementById(ADM_SECTION_ID);
+    if (!section || !section.querySelector('[data-cf-name]')) return; // fields not rendered yet
+    if (section.dataset.prefilled === sid) return;
+    if (studentCfCache[sid]) {
+      applyPrefill(section, studentCfCache[sid]);
+      section.dataset.prefilled = sid;
+      return;
+    }
+    if (prefillInflight[sid]) return;
+    prefillInflight[sid] = true;
+    fetch('/api/addmission_form/' + sid, { headers: { Authorization: getAuthHeader() } })
+      .then(function (r) { return r.json(); })
+      .then(function (s) { studentCfCache[sid] = (s && s.customFields) || {}; })
+      .catch(function () { studentCfCache[sid] = {}; })
+      .then(function () { prefillInflight[sid] = false; });
   }
 
   // ── Collect + validate values from a section ─────────────────────────────────────
@@ -805,10 +887,20 @@
   XMLHttpRequest.prototype.send = function (body) {
     var url = this._cfUrl || '';
     try {
-      // Admission: FormData → append a customFields JSON object.
+      // Admission create: FormData POST → append a customFields JSON object.
       if (body instanceof FormData &&
           (url.indexOf('addmission_form') !== -1 || url.indexOf('addmission-form') !== -1)) {
         body.append('customFields', JSON.stringify(valuesObject(collectValues(ADM_SECTION_ID))));
+      }
+      // Admission edit (Edit Profile): the student update is a FormData PUT to
+      // /api/students/<id>. Only inject when the Personal Details section was prefilled
+      // with the student's saved values — otherwise an update from a form we never
+      // populated would overwrite the stored customFields with blanks.
+      else if (body instanceof FormData && /\/students\/[a-f0-9]{24}(?:[/?]|$)/i.test(url)) {
+        var admSec = document.getElementById(ADM_SECTION_ID);
+        if (admSec && admSec.dataset.prefilled) {
+          body.append('customFields', JSON.stringify(valuesObject(collectValues(ADM_SECTION_ID))));
+        }
       }
       // Enquiry: JSON string → merge fields as { fieldName: { newValue, type } }.
       else if (typeof body === 'string' && url.indexOf('submit-form/enquiry-form') !== -1) {

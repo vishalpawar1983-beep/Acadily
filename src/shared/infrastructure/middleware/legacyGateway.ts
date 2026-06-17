@@ -10408,6 +10408,52 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
           if (body.totalPaid !== undefined)
             updateFields.totalPaid = Number(body.totalPaid) || 0;
 
+          // Tenant-defined custom admission fields (Personal Details section). The
+          // frontend sends them as a JSON object in `customFields` (same shape as the
+          // create path). Merge with the student's existing values so a partial update
+          // never wipes previously-saved fields, and enforce mandatory ones server-side
+          // (scoped to the student's company, stored in `companyName`).
+          if (body.customFields !== undefined) {
+            let cfUpdate: Record<string, unknown> | null = null;
+            try {
+              const parsed =
+                typeof body.customFields === "string"
+                  ? JSON.parse(body.customFields)
+                  : body.customFields;
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                cfUpdate = parsed as Record<string, unknown>;
+              }
+            } catch {
+              /* ignore malformed customFields */
+            }
+            if (cfUpdate) {
+              const merged = {
+                ...((student as any).customFields || {}),
+                ...cfUpdate,
+              };
+              const mandatoryDefs = await db
+                .collection("customfields")
+                .find({
+                  tenantId,
+                  companyId: (student as any).companyName,
+                  formType: "admission",
+                  mandatory: true,
+                })
+                .toArray();
+              for (const def of mandatoryDefs) {
+                const v = (merged as Record<string, unknown>)[def.fieldName];
+                if (v === undefined || v === null || String(v).trim() === "") {
+                  res.status(400).json({
+                    success: false,
+                    message: `${def.fieldName} is required`,
+                  });
+                  return;
+                }
+              }
+              updateFields.customFields = merged;
+            }
+          }
+
           logger.info(
             {
               studentId: student._id,
