@@ -29,7 +29,7 @@ export class MongoStudentRepository implements IStudentRepository {
     companyId: string,
     options: FindAllOptions = {},
   ): Promise<{ students: Student[]; total: number }> {
-    const filter: Record<string, unknown> = { tenantId, deleted: { $ne: true }, 'enrollment.companyId': companyId };
+    const filter: Record<string, unknown> = { tenantId, 'enrollment.companyId': companyId };
     if (options.status) filter.status = options.status;
     if (options.search) {
       filter.$or = [
@@ -62,7 +62,6 @@ export class MongoStudentRepository implements IStudentRepository {
   ): Promise<{ students: Student[]; total: number }> {
     const filter: Record<string, unknown> = {
       tenantId,
-      deleted: { $ne: true },
       'enrollment.companyId': companyId,
       'enrollment.courseId': courseId,
     };
@@ -94,7 +93,7 @@ export class MongoStudentRepository implements IStudentRepository {
     tenantId: string,
     options: FindAllOptions = {},
   ): Promise<{ students: Student[]; total: number }> {
-    const filter: Record<string, unknown> = { tenantId, deleted: { $ne: true } };
+    const filter: Record<string, unknown> = { tenantId };
     if (options.status) filter.status = options.status;
     if (options.search) {
       filter.$or = [
@@ -161,15 +160,7 @@ export class MongoStudentRepository implements IStudentRepository {
   }
 
   async delete(tenantId: string, id: string): Promise<void> {
-    // Soft-delete: mark the student deleted (recoverable) instead of removing the
-    // document. The frontend may pass either the _id or the legacy id, so resolve
-    // both (mirrors findById). All list/count queries here filter out `deleted`.
-    const or: Record<string, unknown>[] = [{ _legacyId: id }];
-    if (/^[a-f\d]{24}$/i.test(id)) or.push({ _id: id });
-    await StudentModel.updateOne(
-      { tenantId, $or: or },
-      { $set: { deleted: true, deletedAt: new Date() } },
-    ).exec();
+    await StudentModel.deleteOne({ _id: id, tenantId }).exec();
   }
 
   async findUnpaidStudents(
@@ -178,7 +169,6 @@ export class MongoStudentRepository implements IStudentRepository {
   ): Promise<Student[]> {
     const filter: Record<string, unknown> = {
       tenantId,
-      deleted: { $ne: true },
       status: { $ne: 'dropout' },
       'enrollment.remainingFees': { $gt: 0 },
     };
@@ -193,7 +183,7 @@ export class MongoStudentRepository implements IStudentRepository {
   }
 
   async count(tenantId: string, filter?: { status?: StudentStatus }): Promise<number> {
-    const query: Record<string, unknown> = { tenantId, deleted: { $ne: true } };
+    const query: Record<string, unknown> = { tenantId };
     if (filter?.status) query.status = filter.status;
     return StudentModel.countDocuments(query).exec();
   }
