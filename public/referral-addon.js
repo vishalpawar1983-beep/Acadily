@@ -34,6 +34,30 @@
     return '';
   }
 
+  function toast(msg, isErr) {
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = ['position:fixed', 'bottom:24px', 'right:24px', 'z-index:100002', 'padding:10px 18px',
+      'border-radius:8px', 'font-weight:600', 'font-size:13px', 'color:#fff', 'box-shadow:0 4px 16px rgba(0,0,0,.3)',
+      isErr ? 'background:#dc3545' : 'background:#198754'].join(';');
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 2400);
+  }
+
+  var lastSaved = {};
+  function saveEmailDirect(id, email) {
+    if (lastSaved[id] === email) return; // avoid redundant saves
+    lastSaved[id] = email;
+    fetch('/api/dayBook/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+      body: JSON.stringify({ email: email }),
+    })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { ok: r.ok, b: b }; }); })
+      .then(function (x) { if (x.ok) toast('Email saved', false); else { lastSaved[id] = undefined; toast('Could not save email', true); } })
+      .catch(function () { lastSaved[id] = undefined; toast('Could not save email', true); });
+  }
+
   function accountFormCtx() {
     var m = location.pathname.match(/\/daybook\/(addAccount|editAccount)\/([a-f0-9]{24})/i);
     if (!m) return null;
@@ -76,6 +100,13 @@
       inp.placeholder = 'Enter Email..';
       inp.removeAttribute('required'); inp.setAttribute('autocomplete', 'off');
       inp.addEventListener('input', function () { emailValue = inp.value; });
+      // On the EDIT page, persist the email directly the moment the field loses focus
+      // (change). This is independent of the bundle's "Edit Account" save, so the email
+      // is saved reliably regardless of the form's own submit behaviour.
+      inp.addEventListener('change', function () {
+        var m = location.pathname.match(/\/daybook\/editAccount\/([a-f0-9]{24})/i);
+        if (m) saveEmailDirect(m[1], inp.value);
+      });
     }
     relabel(wrap, 'Email (for referral notifications)');
     // strip any cloned validation markup
