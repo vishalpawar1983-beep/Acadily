@@ -13,6 +13,11 @@ import { MongoTenantRepository } from "../../../modules/tenant/infrastructure/Mo
 import bcryptjs from "bcryptjs";
 import { EmailService } from "../email/EmailService.js";
 import { TemplateEngine } from "../email/TemplateEngine.js";
+import {
+  runCompanyBackups,
+  listBackups,
+  backupFilePath,
+} from "../backup/BackupService.js";
 
 const tokenService = new JwtTokenService();
 const userRepo = new MongoUserRepository();
@@ -4509,6 +4514,83 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
     } catch (err) {
       logger.error({ err }, "Legacy POST /submit-form/:id/restore failed");
       res.status(500).json({ success: false, message: "Internal error" });
+    }
+  });
+
+  // ── Database backups (per-company, daily) ──
+  // Triggered by the VPS cron (shared secret); writes per-company gzipped JSON.
+  gateway.post("/backups/run", async (req: Request, res: Response) => {
+    try {
+      const secret = (req.headers["x-backup-secret"] as string) || "";
+      if (!process.env.BACKUP_SECRET || secret !== process.env.BACKUP_SECRET) {
+        res.status(403).json({ success: false, message: "Forbidden" });
+        return;
+      }
+      const result = await runCompanyBackups();
+      res.json({ success: true, ...result });
+    } catch (err) {
+      logger.error({ err }, "Backup run failed");
+      res.status(500).json({ success: false, message: "Backup failed" });
+    }
+  });
+
+  // List available backups for the logged-in tenant, with company names resolved.
+  gateway.get("/backups", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.status(401).json({ success: false });
+        return;
+      }
+      const entries = listBackups(tenantId);
+      const { default: mongoose } = await import("mongoose");
+      const comps = await mongoose.connection.db!
+        .collection("batchcategories")
+        .find({ tenantId })
+        .toArray();
+      const nameById: Record<string, string> = {};
+      comps.forEach((c: any) => {
+        const id = c._legacyId ? String(c._legacyId) : c._id.toString();
+        nameById[id] = c.categoryName || c.companyName || c.name || id;
+      });
+      res.json({
+        success: true,
+        backups: entries.map((e) => ({
+          ...e,
+          companyName: nameById[e.companyId] || e.companyId,
+        })),
+      });
+    } catch (err) {
+      logger.error({ err }, "List backups failed");
+      res.status(500).json({ success: false });
+    }
+  });
+
+  // Download a specific company's backup for a date (scoped to the tenant).
+  gateway.get("/backups/file", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.status(401).json({ success: false });
+        return;
+      }
+      const date = String(req.query.date || "");
+      const companyId = String(req.query.companyId || "");
+      const filePath = backupFilePath(tenantId, date, companyId);
+      if (!filePath) {
+        res.status(404).json({ success: false, message: "Backup not found" });
+        return;
+      }
+      res.setHeader("Content-Type", "application/gzip");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="backup-${companyId}-${date}.json.gz"`,
+      );
+      const { createReadStream } = await import("fs");
+      createReadStream(filePath).pipe(res);
+    } catch (err) {
+      logger.error({ err }, "Download backup failed");
+      res.status(500).json({ success: false });
     }
   });
 
