@@ -10,6 +10,9 @@ const PUBLIC_ROUTES = [
   '/health', '/ready', '/metrics',
   // Public enquiry form (no login) — tenant is derived from the company/form id
   '/public/',
+  // Backup cron trigger — protected by its own X-Backup-Secret, not a JWT.
+  // (Only /backups/run; /backups and /backups/file stay auth-protected.)
+  '/backups/run',
   // Legacy auth routes (via legacy gateway, req.path is relative to /api mount)
   '/users/auth', '/register', '/users/requestPassword', '/users/verifyToken',
   '/users/verify-otp', '/users/resend-otp',
