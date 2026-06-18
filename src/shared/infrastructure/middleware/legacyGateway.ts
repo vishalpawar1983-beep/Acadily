@@ -4436,6 +4436,67 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
     }
   });
 
+  // ── List soft-deleted enquiries (Recently Deleted) ──
+  // Separate path (not /submit-form/deleted) so it isn't shadowed by /submit-form/:id.
+  gateway.get("/submit-form-deleted", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.json({ success: true, formFieldValues: [] });
+        return;
+      }
+      const { default: mongoose } = await import("mongoose");
+      const docs = await mongoose.connection
+        .db!.collection("formsubmissions")
+        .find({ tenantId, deleted: true })
+        .sort({ deletedAt: -1 })
+        .toArray();
+      res.json({
+        success: true,
+        formFieldValues: docs.map((d: any) => ({
+          _id: d._legacyId || d._id.toString(),
+          formId: d.formId,
+          companyId: d.companyId,
+          formFiledValue: d.values || d.formFiledValue || [],
+          addedBy: d.addedBy || "",
+          deletedAt: d.deletedAt || null,
+          createdAt: d.createdAt,
+        })),
+      });
+    } catch (err) {
+      logger.error({ err }, "Legacy GET /submit-form-deleted failed");
+      res.json({ success: true, formFieldValues: [] });
+    }
+  });
+
+  // ── Restore a soft-deleted enquiry ──
+  gateway.post("/submit-form/:id/restore", async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).tenantContext?.tenantId;
+      if (!tenantId || tenantId === "__unauthenticated__") {
+        res.status(401).json({ success: false });
+        return;
+      }
+      const { default: mongoose } = await import("mongoose");
+      const id = p(req, "id");
+      const orClauses: any[] = [{ _legacyId: id }];
+      if (mongoose.Types.ObjectId.isValid(id))
+        orClauses.push({ _id: new mongoose.Types.ObjectId(id) });
+      const result = await mongoose.connection.db!.collection("formsubmissions").updateOne(
+        { tenantId, $or: orClauses },
+        { $unset: { deleted: "", deletedAt: "", deletedBy: "" } },
+      );
+      if (result.matchedCount === 0) {
+        res.status(404).json({ success: false, message: "Enquiry not found" });
+        return;
+      }
+      res.json({ success: true, message: "Enquiry restored" });
+    } catch (err) {
+      logger.error({ err }, "Legacy POST /submit-form/:id/restore failed");
+      res.status(500).json({ success: false, message: "Internal error" });
+    }
+  });
+
   // ── Save reordered columns ──
   gateway.post("/columns/save", async (req: Request, res: Response) => {
     try {
@@ -9882,7 +9943,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       const { default: mongoose } = await import("mongoose");
       const accounts = await mongoose.connection
         .db!.collection("daybookaccounts")
-        .find({ tenantId })
+        .find({ tenantId, deleted: { $ne: true } })
         .sort({ createdAt: -1 })
         .toArray();
 
@@ -9962,15 +10023,24 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       const { default: mongoose } = await import("mongoose");
       const id = p(req, "id");
 
-      // Try deleting by _id or _legacyId
+      // Soft-delete: mark the account deleted (recoverable). GET /dayBook hides it.
       const orClauses: any[] = [{ _legacyId: id }];
       if (mongoose.Types.ObjectId.isValid(id))
         orClauses.push({ _id: new mongoose.Types.ObjectId(id) });
       const result = await mongoose.connection
         .db!.collection("daybookaccounts")
-        .deleteOne({ tenantId, $or: orClauses });
+        .updateOne(
+          { tenantId, $or: orClauses, deleted: { $ne: true } },
+          {
+            $set: {
+              deleted: true,
+              deletedAt: new Date(),
+              deletedBy: (req as any).user?.userId || "system",
+            },
+          },
+        );
 
-      if (result.deletedCount === 0) {
+      if (result.matchedCount === 0) {
         res.status(404).json({ message: "Account not found" });
         return;
       }

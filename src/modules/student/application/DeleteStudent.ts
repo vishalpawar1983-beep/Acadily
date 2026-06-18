@@ -1,10 +1,6 @@
 import type { UseCase } from '../../../shared/application/UseCase.js';
 import type { IStudentRepository } from '../domain/repositories/IStudentRepository.js';
 import { NotFoundError } from '../../../shared/domain/errors.js';
-import { FeeModel } from '../../fees/infrastructure/FeeModel.js';
-import { FeeInstallmentModel } from '../../installments/infrastructure/FeeInstallmentModel.js';
-import { StudentMarksModel } from '../../marks/infrastructure/StudentMarksModel.js';
-import { StudentIssueModel } from '../../issues/infrastructure/StudentIssueModel.js';
 
 export interface DeleteStudentRequest {
   tenantId: string;
@@ -25,14 +21,9 @@ export class DeleteStudent implements UseCase<DeleteStudentRequest, DeleteStuden
       throw new NotFoundError('Student', request.studentId);
     }
 
-    // Cascade delete related records
-    await Promise.all([
-      FeeModel.deleteMany({ tenantId: request.tenantId, studentId: request.studentId }).exec(),
-      FeeInstallmentModel.deleteMany({ tenantId: request.tenantId, studentId: request.studentId }).exec(),
-      StudentMarksModel.deleteMany({ tenantId: request.tenantId, studentId: request.studentId }).exec(),
-      StudentIssueModel.deleteMany({ tenantId: request.tenantId, studentId: request.studentId }).exec(),
-    ]);
-
+    // Soft-delete only (repo marks the student `deleted`). Related records — fees,
+    // installments, marks, issues — are intentionally KEPT so the student can be fully
+    // restored. They were previously hard-deleted here, which made deletion permanent.
     await this.studentRepo.delete(request.tenantId, request.studentId);
 
     return {
