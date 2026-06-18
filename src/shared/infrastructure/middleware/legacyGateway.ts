@@ -3751,7 +3751,8 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       const { default: mongoose } = await import("mongoose");
       const db2 = mongoose.connection.db!;
       const [docs, selectDocs2] = await Promise.all([
-        db2.collection("formsubmissions").find({ tenantId }).toArray(),
+        // Hide soft-deleted enquiries (deleted via DELETE /submit-form/:id).
+        db2.collection("formsubmissions").find({ tenantId, deleted: { $ne: true } }).toArray(),
         db2.collection("defaultselects").find({ tenantId }).toArray(),
       ]);
       const selectNames2 = new Set<string>(
@@ -4410,10 +4411,19 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       const orClauses: any[] = [{ _legacyId: id }];
       if (mongoose.Types.ObjectId.isValid(id))
         orClauses.push({ _id: new mongoose.Types.ObjectId(id) });
-      const result = await db
-        .collection("formsubmissions")
-        .deleteOne({ tenantId, $or: orClauses });
-      if (result.deletedCount === 0) {
+      // Soft-delete: mark the enquiry deleted instead of removing it, so it can always
+      // be recovered. The list endpoint (GET /submit-form) hides `deleted` rows.
+      const result = await db.collection("formsubmissions").updateOne(
+        { tenantId, $or: orClauses, deleted: { $ne: true } },
+        {
+          $set: {
+            deleted: true,
+            deletedAt: new Date(),
+            deletedBy: (req as any).user?.userId || "system",
+          },
+        },
+      );
+      if (result.matchedCount === 0) {
         res
           .status(404)
           .json({ success: false, message: "Form data not found" });
