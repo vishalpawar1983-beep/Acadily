@@ -3601,21 +3601,34 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         return;
       }
       const { default: mongoose } = await import("mongoose");
-      const docs = await mongoose.connection
-        .db!.collection("defaultselects")
-        .find({ tenantId })
-        .toArray();
-      res.json({
-        success: true,
-        defaultSelects: docs.map((d: any) => ({
-          _id: d._legacyId || d._id.toString(),
-          selectName: d.selectName,
-          options: d.options || [],
-          mandatory: d.isMandatory ?? d.mandatory ?? false,
+      const db = mongoose.connection.db!;
+      const docs = await db.collection("defaultselects").find({ tenantId }).toArray();
+      const list = docs.map((d: any) => ({
+        _id: d._legacyId || d._id.toString(),
+        selectName: d.selectName,
+        options: d.options || [],
+        mandatory: d.isMandatory ?? d.mandatory ?? false,
+        __v: 0,
+        type: d.fieldType || d.type || "select",
+      }));
+
+      // On the Add-Enquiry page, append a dynamic "Referred By" select listing that
+      // company's Commission DayBook accounts. The company id isn't sent to this
+      // endpoint, so derive it from the Referer (/add-enquiry/<companyId>).
+      const ref = String(req.headers.referer || "");
+      const rm = ref.match(/\/add-enquiry\/([a-f0-9]{24})/i);
+      if (rm) {
+        const options = await commissionReferrerOptions(db, tenantId, rm[1]);
+        list.push({
+          _id: "referred-by",
+          selectName: "Referred By",
+          options,
+          mandatory: false,
           __v: 0,
-          type: d.fieldType || d.type || "select",
-        })),
-      });
+          type: "select",
+        });
+      }
+      res.json({ success: true, defaultSelects: list });
     } catch (err) {
       logger.error({ err }, "Legacy select-field query failed");
       res.json({ success: true, defaultSelects: [] });
@@ -3828,6 +3841,12 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         updatedAt: new Date().toISOString(),
       };
       await db.collection("formsubmissions").insertOne(doc);
+
+      // Notify the referrer if a "Referred By" person was chosen.
+      const valueByName: Record<string, string> = {};
+      values.forEach((v: any) => { valueByName[v.name] = String(v.value ?? ""); });
+      void sendReferralEmail(db, tenantId, companyId, valueByName);
+
       res.json({
         success: true,
         message: "Form data and rows updated successfully",
@@ -3989,6 +4008,80 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
     return { tenantId, companyName, companyId, formId, formDoc };
   }
 
+  // Commission DayBook accounts double as "referrers": each can hold an email. This
+  // builds the option list for the "Referred By" enquiry-form select, scoped to a
+  // company (names de-duplicated).
+  async function commissionReferrerOptions(db: any, tenantId: string, companyId?: string): Promise<string[]> {
+    if (!companyId) return [];
+    const accts = await db
+      .collection("daybookaccounts")
+      .find({ tenantId, accountType: "Commission", companyId })
+      .toArray();
+    return Array.from(
+      new Set(accts.map((a: any) => String(a.accountName || "").trim()).filter(Boolean)),
+    );
+  }
+
+  // Mask a mobile number for referral emails: keep the first 2 and last 2 digits.
+  function maskMobile(m: any): string {
+    const s = String(m || "").trim();
+    if (!s) return "";
+    if (s.length <= 4) return "X".repeat(s.length);
+    return s.slice(0, 2) + "X".repeat(s.length - 4) + s.slice(-2);
+  }
+
+  // If an enquiry was submitted with a "Referred By" person, email that person — their
+  // email lives on the matching Commission DayBook account. The lead's mobile is
+  // partially masked. Fire-and-forget so it never blocks the submission.
+  async function sendReferralEmail(
+    db: any,
+    tenantId: string,
+    companyId: string | null | undefined,
+    valueByName: Record<string, string>,
+    companyName?: string,
+  ): Promise<void> {
+    try {
+      const referrer = String(valueByName["Referred By"] || "").trim();
+      if (!referrer) return;
+      const acct = await db.collection("daybookaccounts").findOne({
+        tenantId,
+        accountType: "Commission",
+        accountName: referrer,
+        ...(companyId ? { companyId } : {}),
+      });
+      if (!acct || !acct.email) return;
+      const name = valueByName["Name"] || "";
+      const mobile = maskMobile(valueByName["Mobile Number"]);
+      const status = valueByName["Lead Status"] || "";
+      const course = valueByName["Course"] || valueByName["select_course"] || "";
+      const lines = [
+        `Hello ${acct.accountName},`,
+        ``,
+        `A new enquiry${companyName ? ` at ${companyName}` : ""} has been received with you as the referrer:`,
+        ``,
+        `Name: ${name}`,
+        mobile ? `Mobile: ${mobile}` : "",
+        status ? `Lead Status: ${status}` : "",
+        course ? `Course: ${course}` : "",
+        ``,
+        `Thank you for your referral.`,
+      ].filter((l) => l !== "");
+      const text = lines.join("\n");
+      logger.info({ to: acct.email, referrer, companyId }, "Sending referral email");
+      void emailService
+        .send({
+          to: acct.email,
+          subject: `New referral enquiry${companyName ? ` — ${companyName}` : ""}`,
+          text,
+          html: text.replace(/\n/g, "<br>"),
+          tenantId,
+        })
+        .catch((e: any) => logger.error({ err: e }, "Referral email send failed"));
+    } catch (err) {
+      logger.error({ err }, "sendReferralEmail failed");
+    }
+  }
+
   gateway.get(
     ["/public/enquiry/:companyId", "/public/enquiry/:companyId/:formId"],
     async (req: Request, res: Response) => {
@@ -4040,6 +4133,18 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
             defaultValue: locked || undefined,
           };
         });
+
+        // Dynamic "Referred By" select — this company's Commission DayBook accounts.
+        const referrerOptions = await commissionReferrerOptions(db, ctx.tenantId, companyResolved);
+        if (referrerOptions.length) {
+          defaultSelects.push({
+            name: "Referred By",
+            type: "select",
+            mandatory: false,
+            options: referrerOptions,
+            defaultValue: undefined,
+          });
+        }
 
         const cfs = await db
           .collection("customfields")
@@ -4145,6 +4250,10 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
+
+        // Notify the referrer if a "Referred By" person was chosen.
+        void sendReferralEmail(db, ctx.tenantId, companyId, valueByName, ctx.companyName);
+
         res.json({ success: true, message: "Enquiry submitted successfully" });
       } catch (err) {
         logger.error({ err }, "Public POST /public/enquiry failed");
@@ -9730,6 +9839,9 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         accountName: body.accountName,
         accountType: body.accountType || "",
         companyId: body.companyId || null,
+        // Commission accounts double as referrers; an email enables referral
+        // notifications when chosen in an enquiry form's "Referred By" field.
+        email: body.email || "",
         isActive: true,
         createdBy: (req as any).user?.userId || "system",
         createdAt: now,
@@ -9770,6 +9882,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
           accountName: a.accountName || "",
           accountType: a.accountType || "",
           companyId: a.companyId || null,
+          email: a.email || "",
           isActive: a.isActive ?? true,
           createdAt: a.createdAt,
           updatedAt: a.updatedAt || a.createdAt,
@@ -9797,6 +9910,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
       if (body.accountName) updateFields.accountName = body.accountName;
       if (body.accountType) updateFields.accountType = body.accountType;
       if (body.companyId) updateFields.companyId = body.companyId;
+      if (body.email !== undefined) updateFields.email = body.email;
       if (body.isActive !== undefined) updateFields.isActive = body.isActive;
 
       const orClauses: any[] = [{ _legacyId: id }];
