@@ -7,13 +7,19 @@
  * or PUT /api/dayBook/<id>). The email is used by the server to notify the referrer when
  * they're chosen in an enquiry form's "Referred By" field. The "Referred By" select itself
  * is injected server-side, so it isn't handled here.
+ *
+ * The typed/loaded email is mirrored into a module variable (`emailValue`) so it survives
+ * React re-renders that may recreate the injected field, and the save-hook reads THAT
+ * variable (not the live DOM) — robust against the field being momentarily cleared.
  */
 (function () {
   'use strict';
 
   var FIELD_ID = 'ref-email-input';
   var WRAP_ATTR = 'data-ref-email-wrap';
-  var prefilled = {};
+  var emailValue = '';      // current email text (survives field recreation)
+  var boundId = null;       // account id the current emailValue belongs to
+  var prefilledIds = {};    // account ids already prefilled from the server
 
   function getToken() {
     try {
@@ -41,48 +47,79 @@
     return el.closest('.col-md-6') || el.closest('[class*="col-"]') || el.parentElement;
   }
 
+  // Replace the field label, which here is a TEXT NODE directly inside the cloned
+  // <label> (e.g. "Account Name "), not a child element. Walk text nodes and rename
+  // the first non-empty one.
+  function relabel(root, text) {
+    var stack = [root];
+    while (stack.length) {
+      var n = stack.shift();
+      for (var i = 0; i < n.childNodes.length; i++) {
+        var c = n.childNodes[i];
+        if (c.nodeType === 3 && c.textContent.trim()) { c.textContent = text + ' '; return true; }
+        if (c.nodeType === 1 && c.tagName !== 'INPUT' && c.tagName !== 'SELECT') stack.push(c);
+      }
+    }
+    return false;
+  }
+
+  function buildField(ctx) {
+    var nameCol = column(ctx.nameInp);
+    var wrap = nameCol.cloneNode(true);
+    wrap.setAttribute(WRAP_ATTR, '1');
+    wrap.style.display = '';
+    // turn the cloned input into the email input (clear the cloned value attr too)
+    var inp = wrap.querySelector('input');
+    if (inp) {
+      inp.id = FIELD_ID; inp.name = 'refEmail'; inp.type = 'email';
+      inp.removeAttribute('value'); inp.value = '';
+      inp.placeholder = 'Enter Email..';
+      inp.removeAttribute('required'); inp.setAttribute('autocomplete', 'off');
+      inp.addEventListener('input', function () { emailValue = inp.value; });
+    }
+    relabel(wrap, 'Email (for referral notifications)');
+    // strip any cloned validation markup
+    wrap.querySelectorAll('.text-danger, .invalid-feedback, .error, .text-red-500').forEach(function (e) { e.remove(); });
+    var typeCol = column(ctx.typeSel);
+    typeCol.parentNode.insertBefore(wrap, typeCol.nextSibling);
+    return wrap;
+  }
+
   function ensureEmailField(ctx) {
+    // Reset the stored value when we move to a different account/add form.
+    if (boundId !== ctx.id) { boundId = ctx.id; emailValue = ''; }
+
     var isCommission = ctx.typeSel.value === 'Commission';
     var wrap = document.querySelector('[' + WRAP_ATTR + ']');
 
     if (!isCommission) { if (wrap) wrap.style.display = 'none'; return; }
 
-    if (!wrap) {
-      var nameCol = column(ctx.nameInp);
-      wrap = nameCol.cloneNode(true);
-      wrap.setAttribute(WRAP_ATTR, '1');
-      wrap.style.display = '';
-      var inp = wrap.querySelector('input');
-      if (inp) {
-        inp.id = FIELD_ID; inp.name = 'refEmail'; inp.type = 'email';
-        inp.value = ''; inp.placeholder = 'Enter Email..';
-        inp.removeAttribute('required');
-      }
-      var lbl = wrap.querySelector('label');
-      if (lbl) lbl.textContent = 'Email (for referral notifications)';
-      // strip any cloned validation error text
-      wrap.querySelectorAll('.text-danger, .invalid-feedback, .error, .text-red-500').forEach(function (e) { e.remove(); });
-      var typeCol = column(ctx.typeSel);
-      typeCol.parentNode.insertBefore(wrap, typeCol.nextSibling);
-    } else {
-      wrap.style.display = '';
-    }
+    if (!wrap) wrap = buildField(ctx);
+    else wrap.style.display = '';
 
-    // Prefill the email on the edit page from the saved account.
-    if (ctx.mode === 'editAccount' && !prefilled[ctx.id]) {
-      prefilled[ctx.id] = true;
+    // Keep the visible input in sync with the stored value (survives recreation),
+    // unless the user is actively typing in it.
+    var inp = document.getElementById(FIELD_ID);
+    if (inp && document.activeElement !== inp && inp.value !== emailValue) inp.value = emailValue;
+
+    // Prefill the email on the edit page from the saved account (once per account).
+    if (ctx.mode === 'editAccount' && !prefilledIds[ctx.id]) {
+      prefilledIds[ctx.id] = true;
       fetch('/api/dayBook', { headers: { Authorization: 'Bearer ' + getToken() } })
         .then(function (r) { return r.json(); })
         .then(function (list) {
           var acct = (Array.isArray(list) ? list : []).find(function (a) { return String(a._id) === ctx.id; });
-          var inp = document.getElementById(FIELD_ID);
-          if (acct && acct.email && inp && !inp.value) inp.value = acct.email;
+          if (acct && acct.email && !emailValue) {
+            emailValue = acct.email;
+            var f = document.getElementById(FIELD_ID);
+            if (f && document.activeElement !== f) f.value = emailValue;
+          }
         })
-        .catch(function () { prefilled[ctx.id] = false; });
+        .catch(function () { prefilledIds[ctx.id] = false; });
     }
   }
 
-  // Append `email` to the account create/update request.
+  // Append `email` to the account create/update request (read from the stored value).
   var _open = XMLHttpRequest.prototype.open;
   var _send = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.open = function (method, url) {
@@ -95,16 +132,15 @@
       var u = this._refUrl || '';
       var isAdd = /\/dayBook\/addAccount/i.test(u);
       var isEdit = /\/dayBook\/[a-f0-9]{24}(?:[/?]|$)/i.test(u) && this._refMethod === 'PUT';
-      if ((isAdd || isEdit) && typeof body === 'string') {
-        var inp = document.getElementById(FIELD_ID);
-        var wrap = document.querySelector('[' + WRAP_ATTR + ']');
-        var visible = wrap && wrap.style.display !== 'none';
-        if (inp && visible) {
-          var payload = JSON.parse(body);
-          payload.email = inp.value || '';
-          arguments[0] = JSON.stringify(payload);
-          return _send.call(this, arguments[0]);
-        }
+      var wrap = document.querySelector('[' + WRAP_ATTR + ']');
+      var visible = wrap && wrap.style.display !== 'none';
+      if ((isAdd || isEdit) && visible && typeof body === 'string') {
+        var live = document.getElementById(FIELD_ID);
+        var email = (live && live.value) || emailValue || '';
+        var payload = JSON.parse(body);
+        payload.email = email;
+        arguments[0] = JSON.stringify(payload);
+        return _send.call(this, arguments[0]);
       }
     } catch (e) { /* never block the request */ }
     return _send.apply(this, arguments);
