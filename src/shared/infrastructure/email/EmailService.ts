@@ -7,6 +7,7 @@ import { TenantSettingsModel } from '../../../modules/settings/infrastructure/Te
 
 export interface EmailOptions {
   to: string | string[];
+  cc?: string | string[];
   subject: string;
   text?: string;
   html?: string;
@@ -145,9 +146,13 @@ export class EmailService {
         return false;
       }
 
+      const ccList = options.cc
+        ? (Array.isArray(options.cc) ? options.cc : [options.cc]).filter(Boolean)
+        : [];
       await transporter.sendMail({
         from,
         to: recipients,
+        ...(ccList.length ? { cc: ccList.join(', ') } : {}),
         subject: options.subject,
         text: options.text,
         html: options.html,

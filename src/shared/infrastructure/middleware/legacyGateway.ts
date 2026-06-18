@@ -4051,6 +4051,18 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         ...(companyId ? { companyId } : {}),
       });
       if (!acct || !acct.email) return;
+
+      // CC the company's email (from batchcategories) so the office is also notified.
+      let companyCc = "";
+      if (companyId) {
+        const { default: mongoose } = await import("mongoose");
+        const { ObjectId } = mongoose.Types;
+        const compOr: any[] = [{ _legacyId: companyId }];
+        if (ObjectId.isValid(companyId)) compOr.push({ _id: new ObjectId(companyId) });
+        const comp = await db.collection("batchcategories").findOne({ tenantId, $or: compOr });
+        companyCc = (comp?.email || "").trim();
+      }
+
       const name = valueByName["Name"] || "";
       const mobile = maskMobile(valueByName["Mobile Number"]);
       const status = valueByName["Lead Status"] || "";
@@ -4068,10 +4080,13 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         `Thank you for your referral.`,
       ].filter((l) => l !== "");
       const text = lines.join("\n");
-      logger.info({ to: acct.email, referrer, companyId }, "Sending referral email");
+      logger.info({ to: acct.email, cc: companyCc || undefined, referrer, companyId }, "Sending referral email");
       void emailService
         .send({
           to: acct.email,
+          ...(companyCc && companyCc.toLowerCase() !== String(acct.email).toLowerCase()
+            ? { cc: companyCc }
+            : {}),
           subject: `New referral enquiry${companyName ? ` — ${companyName}` : ""}`,
           text,
           html: text.replace(/\n/g, "<br>"),
