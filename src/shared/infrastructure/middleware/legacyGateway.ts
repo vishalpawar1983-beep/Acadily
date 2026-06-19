@@ -6881,12 +6881,6 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
           body.reciptNumber ||
           body.receiptNumber ||
           "";
-        const amountDate =
-          feeDoc?.amountDate ||
-          feeDoc?.paymentDate ||
-          body.amountDate ||
-          feeDoc?.createdAt ||
-          new Date();
 
         // Resolve course name
         let courseName = "";
@@ -6957,13 +6951,6 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         const total = amountPaid + lateFees;
 
         const fmt = (n: number) => (Number(n) || 0).toFixed(2);
-        const fmtDate = (d: any) => {
-          const dt = new Date(d);
-          if (isNaN(dt.getTime())) return "";
-          const dd = String(dt.getDate()).padStart(2, "0");
-          const mm = String(dt.getMonth() + 1).padStart(2, "0");
-          return `${dd}-${mm}-${dt.getFullYear()}`;
-        };
         const esc = (s: any) =>
           String(s ?? "").replace(
             /[&<>"]/g,
