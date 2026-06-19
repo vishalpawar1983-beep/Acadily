@@ -13,6 +13,7 @@ import { MongoTenantRepository } from "../../../modules/tenant/infrastructure/Mo
 import bcryptjs from "bcryptjs";
 import { EmailService } from "../email/EmailService.js";
 import { TemplateEngine } from "../email/TemplateEngine.js";
+import { config } from "../../../config/index.js";
 import {
   runCompanyBackups,
   listBackups,
@@ -6787,6 +6788,361 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
         .json({ success: false, message: "Internal server error" });
     }
   });
+
+  // ── Fee receipt email (POST /students/sendMailStudent) ──
+  // Triggered by the "Mail Button" in the student-profile fees table. Sends a
+  // formatted fee-receipt email to the student (CC tenant SuperAdmins), matching
+  // the PrintStudentFeesRecipt frontend receipt (incl. GST handling). This explicit
+  // handler shadows the routeMappings proxy entry (→ DDD send-receipt-mail, which
+  // sends a plain template). The receipt is rebuilt from authoritative DB data, not
+  // the client-supplied row, so it stays correct even if the UI payload is stale.
+  gateway.post(
+    "/students/sendMailStudent",
+    async (req: Request, res: Response) => {
+      try {
+        const tenantId = (req as any).tenantContext?.tenantId;
+        if (!tenantId || tenantId === "__unauthenticated__") {
+          res.status(401).json({ success: false, message: "Unauthorized" });
+          return;
+        }
+        const { default: mongoose } = await import("mongoose");
+        const { ObjectId } = mongoose.Types;
+        const db = mongoose.connection.db!;
+        const body = req.body as any;
+
+        const studentRef = String(body.studentId || body.studentInfo || "").trim();
+        if (!studentRef) {
+          res
+            .status(400)
+            .json({ success: false, error: "studentId is required" });
+          return;
+        }
+
+        // Resolve student
+        const stuOr: any[] = [{ _legacyId: studentRef }];
+        if (ObjectId.isValid(studentRef))
+          stuOr.push({ _id: new ObjectId(studentRef) });
+        const student = await db
+          .collection("students")
+          .findOne({ tenantId, $or: stuOr });
+        if (!student) {
+          res
+            .status(404)
+            .json({ success: false, error: "Student not found" });
+          return;
+        }
+
+        const enrollment = Array.isArray(student.enrollment)
+          ? student.enrollment[0]
+          : student.enrollment || {};
+        const studentName =
+          student.name ||
+          [student.firstName, student.lastName].filter(Boolean).join(" ") ||
+          "Student";
+        const fatherName = student.fatherName || student.father_name || "";
+        const rollNumber = student.rollNumber || "";
+        const studentEmail = student.contact?.email || student.email || "";
+
+        if (!studentEmail) {
+          res.json({
+            success: false,
+            error: "Student has no email address on file",
+          });
+          return;
+        }
+
+        // Resolve the specific fee payment (by row _id from the body)
+        const feeRef = String(body._id || body.feeId || "").trim();
+        const feeOr: any[] = [];
+        if (feeRef) {
+          feeOr.push({ _legacyId: feeRef });
+          if (ObjectId.isValid(feeRef))
+            feeOr.push({ _id: new ObjectId(feeRef) });
+        }
+        if (body.reciptNumber || body.receiptNumber) {
+          const rn = String(body.reciptNumber || body.receiptNumber);
+          feeOr.push({ receiptNumber: rn }, { reciptNumber: rn });
+        }
+        let feeDoc: any = null;
+        if (feeOr.length) {
+          feeDoc =
+            (await db
+              .collection("feepayments")
+              .findOne({ tenantId, $or: feeOr })) ||
+            (await db.collection("coursefees").findOne({ $or: feeOr }));
+        }
+
+        // Authoritative figures (fall back to the client row for display only)
+        const amountPaid = Number(feeDoc?.amountPaid ?? body.amountPaid ?? 0) || 0;
+        const lateFees = Number(feeDoc?.lateFees ?? body.lateFees ?? 0) || 0;
+        const receiptNumber =
+          feeDoc?.receiptNumber ||
+          feeDoc?.reciptNumber ||
+          body.reciptNumber ||
+          body.receiptNumber ||
+          "";
+        const amountDate =
+          feeDoc?.amountDate ||
+          feeDoc?.paymentDate ||
+          body.amountDate ||
+          feeDoc?.createdAt ||
+          new Date();
+
+        // Resolve course name
+        let courseName = "";
+        const courseRef =
+          feeDoc?.courseId ||
+          feeDoc?.courseName ||
+          enrollment.courseId ||
+          student.courseName;
+        if (courseRef) {
+          const cOr: any[] = [{ _legacyId: String(courseRef) }];
+          if (ObjectId.isValid(String(courseRef)))
+            cOr.push({ _id: new ObjectId(String(courseRef)) });
+          const courseDoc = await db
+            .collection("courses")
+            .findOne({ tenantId, $or: cOr });
+          courseName = courseDoc?.name || courseDoc?.courseName || "";
+        }
+        if (!courseName && body.courseName) {
+          courseName =
+            typeof body.courseName === "object"
+              ? body.courseName.courseName || ""
+              : String(body.courseName);
+        }
+
+        // Resolve payment method name
+        let paymentMethod = "";
+        const payRef = feeDoc?.paymentOption;
+        if (payRef) {
+          const pOr: any[] = [{ _legacyId: String(payRef) }];
+          if (ObjectId.isValid(String(payRef)))
+            pOr.push({ _id: new ObjectId(String(payRef)) });
+          const payDoc = await db
+            .collection("paymentoptions")
+            .findOne({ $or: pOr });
+          paymentMethod = payDoc?.optionName || payDoc?.name || "";
+        }
+        if (!paymentMethod && body.paymentOption) {
+          paymentMethod =
+            typeof body.paymentOption === "object"
+              ? body.paymentOption.name || ""
+              : String(body.paymentOption);
+        }
+
+        // Resolve company (logo, address, contact, GST)
+        const companyId = normalizeCompanyId(
+          enrollment.companyId || student.companyName || feeDoc?.companyId,
+        );
+        let company: any = null;
+        if (companyId) {
+          const compOr: any[] = [{ _legacyId: companyId }];
+          if (ObjectId.isValid(companyId))
+            compOr.push({ _id: new ObjectId(companyId) });
+          company = await db
+            .collection("batchcategories")
+            .findOne({ tenantId, $or: compOr });
+        }
+        const isGstBased = String(company?.isGstBased || "No") === "Yes";
+        const gstPercentage =
+          Number(company?.gst ?? feeDoc?.gst_percentage ?? body.gst_percentage ?? 0) ||
+          0;
+
+        // GST math — mirrors PrintStudentFeesRecipt exactly
+        const gstAmount =
+          isGstBased && gstPercentage + 100 > 0
+            ? (amountPaid / (gstPercentage + 100)) * 100
+            : amountPaid;
+        const gstPortion = amountPaid - gstAmount;
+        const total = amountPaid + lateFees;
+
+        const fmt = (n: number) => (Number(n) || 0).toFixed(2);
+        const fmtDate = (d: any) => {
+          const dt = new Date(d);
+          if (isNaN(dt.getTime())) return "";
+          const dd = String(dt.getDate()).padStart(2, "0");
+          const mm = String(dt.getMonth() + 1).padStart(2, "0");
+          return `${dd}-${mm}-${dt.getFullYear()}`;
+        };
+        const esc = (s: any) =>
+          String(s ?? "").replace(
+            /[&<>"]/g,
+            (c) =>
+              (({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+              }) as Record<string, string>)[c] || c,
+          );
+
+        const logoUrl = company?.logo
+          ? `${config.BACKEND_URL}/api/images/${encodeURIComponent(
+              String(company.logo),
+            )}`
+          : "";
+        const companyName = company?.companyName || "";
+        const companyAddress = company?.companyAddress || "";
+        const rawPhone = String(company?.companyPhone || "").trim();
+        // Display with a +91 prefix unless the number already carries a country code.
+        const companyPhone = rawPhone
+          ? /^\+|^91\d/.test(rawPhone)
+            ? rawPhone
+            : `+91 ${rawPhone}`
+          : "";
+        const companyEmail = company?.email || "";
+        const companyWebsite = company?.companyWebsite || "";
+
+        const cell =
+          "padding:6px 12px;font-family:'Source Sans Pro',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;";
+        const dotted = "border:2px dotted #000;";
+        const infoRow = (label: string, value: string) =>
+          `<tr><td style="padding:2px 0;font-family:'Source Sans Pro',Helvetica,Arial,sans-serif;font-size:15px;white-space:nowrap;"><strong>${label}</strong></td><td style="padding:2px 0 2px 24px;font-family:'Source Sans Pro',Helvetica,Arial,sans-serif;font-size:15px;">${esc(value)}</td></tr>`;
+
+        const gstHtmlRow = isGstBased
+          ? `<tr><td align="left" width="75%" style="${cell}${dotted}">GST (${esc(gstPercentage)} %)</td><td align="left" width="25%" style="${cell}">Rs ${fmt(gstPortion)}</td></tr>`
+          : "";
+
+        const html = `
+<div style="background-color:#ffffff;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;margin:0 auto;">
+    ${
+      logoUrl
+        ? `<tr><td align="center" style="padding:16px 0;"><img src="${logoUrl}" alt="Logo" width="200" style="display:block;width:200px;max-width:200px;border-radius:2px;" /></td></tr>`
+        : ""
+    }
+    <tr>
+      <td style="padding:24px 24px 0;border-top:3px solid #d4dadf;font-family:'Source Sans Pro',Helvetica,Arial,sans-serif;">
+        <h6 style="margin:0;font-size:24px;font-weight:700;letter-spacing:-1px;line-height:30px;text-align:left;">Thank You, Your Fees Submitted Successfully!</h6>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 24px 0;">
+        <table border="0" cellpadding="0" cellspacing="0">
+          ${infoRow("Student Name", studentName)}
+          ${infoRow("Father Name", fatherName)}
+          ${infoRow("Roll Number", String(rollNumber))}
+          ${infoRow("Course Name", courseName)}
+          ${infoRow("Payment Method", paymentMethod)}
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 20px 0;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td align="left" width="75%" bgcolor="#D2C7BA" style="padding:12px;font-family:'Source Sans Pro',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;"><strong>Receipt No</strong></td>
+            <td align="left" width="25%" bgcolor="#D2C7BA" style="padding:12px;font-family:'Source Sans Pro',Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;"><strong>${esc(receiptNumber)}</strong></td>
+          </tr>
+          <tr>
+            <td align="left" width="75%" style="${cell}${dotted}">Fees Paid</td>
+            <td align="left" width="25%" style="${cell}">Rs ${fmt(isGstBased ? gstAmount : amountPaid)}</td>
+          </tr>
+          <tr>
+            <td align="left" width="75%" style="${cell}${dotted}">Late Fees</td>
+            <td align="left" width="25%" style="${cell}">Rs ${fmt(lateFees)}</td>
+          </tr>
+          ${gstHtmlRow}
+          <tr>
+            <td align="left" width="75%" style="${cell}${dotted}"><strong>Total Amount</strong></td>
+            <td align="left" width="25%" style="${cell}"><strong>Rs ${fmt(total)}</strong></td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:24px;border-bottom:3px solid #d4dadf;font-family:'Source Sans Pro',Helvetica,Arial,sans-serif;font-size:14px;line-height:24px;text-align:center;">
+        ${esc(companyAddress)}${companyAddress ? "<br/>" : ""}
+        ${companyPhone ? `Contact Us : ${esc(companyPhone)}<br/>` : ""}
+        ${companyEmail ? `Email : <a href="mailto:${esc(companyEmail)}">${esc(companyEmail)}</a>${companyWebsite ? " | " : ""}` : ""}
+        ${companyWebsite ? `<a href="http://${esc(companyWebsite)}">${esc(companyWebsite)}</a>` : ""}
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 24px;font-family:'Source Sans Pro',Helvetica,Arial,sans-serif;font-size:13px;color:#666;">
+        <b>Important Note :</b>
+        <p style="margin:6px 0 0;">CHEQUES SUBJECT TO REALISATION<br/>THE RECEIPT MUST BE PRODUCED WHEN DEMANDED<br/>FEES ONCE PAID ARE NOT REFUNDABLE${
+          companyWebsite
+            ? `<br/>To stop receiving these emails, you can <a href="http://${esc(companyWebsite)}" style="text-decoration:underline;">unsubscribe</a> at any time.`
+            : ""
+        }</p>
+      </td>
+    </tr>
+  </table>
+</div>`;
+
+        // Preview mode — return the rendered receipt without sending (no email, no writes)
+        if (body.preview) {
+          res.json({ success: true, preview: true, to: studentEmail, subject: `Payment Receipt${receiptNumber ? ` ${receiptNumber}` : ""}${companyName ? ` - ${companyName}` : ""}`, html });
+          return;
+        }
+
+        // CC tenant SuperAdmins (excluding the student's own address)
+        const superAdminEmails: string[] = [];
+        try {
+          const admins = (await db
+            .collection("users")
+            .find(
+              { tenantId, role: "SuperAdmin", isActive: { $ne: false } },
+              { projection: { email: 1 } },
+            )
+            .toArray()) as any[];
+          for (const a of admins) {
+            if (
+              a.email &&
+              a.email.toLowerCase() !== studentEmail.toLowerCase() &&
+              !superAdminEmails.includes(a.email)
+            ) {
+              superAdminEmails.push(a.email);
+            }
+          }
+        } catch {
+          /* ignore — CC is best-effort */
+        }
+
+        // Resolve sender name for the email log
+        let sentBy = "Admin";
+        const uid = (req as any).user?.userId;
+        if (uid) {
+          const nameMap = await resolveUserNames(db, [uid]);
+          sentBy = nameMap.get(uid) || "Admin";
+        }
+
+        const subject = `Payment Receipt${
+          receiptNumber ? ` ${receiptNumber}` : ""
+        }${companyName ? ` - ${companyName}` : ""}`;
+
+        const ok = await emailService.send({
+          to: studentEmail,
+          ...(superAdminEmails.length ? { cc: superAdminEmails } : {}),
+          tenantId,
+          sentBy,
+          subject,
+          html,
+        });
+
+        if (!ok) {
+          res.json({
+            success: false,
+            error: "Email could not be sent — check the SMTP settings",
+          });
+          return;
+        }
+
+        res.json({
+          success: true,
+          message: "Receipt mail sent successfully!",
+          studentId: studentRef,
+          email: studentEmail,
+        });
+      } catch (err) {
+        logger.error({ err }, "Legacy POST /students/sendMailStudent failed");
+        res
+          .status(500)
+          .json({ success: false, error: "Internal server error" });
+      }
+    },
+  );
 
   // ── Subject marks email (POST /subjects/subject-mail) ──
   gateway.post(
