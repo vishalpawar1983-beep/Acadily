@@ -6905,24 +6905,21 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
               : String(body.courseName);
         }
 
-        // Resolve payment method name
-        let paymentMethod = "";
-        const payRef = feeDoc?.paymentOption;
-        if (payRef) {
-          const pOr: any[] = [{ _legacyId: String(payRef) }];
-          if (ObjectId.isValid(String(payRef)))
-            pOr.push({ _id: new ObjectId(String(payRef)) });
-          const payDoc = await db
-            .collection("paymentoptions")
-            .findOne({ $or: pOr });
-          paymentMethod = payDoc?.optionName || payDoc?.name || "";
-        }
-        if (!paymentMethod && body.paymentOption) {
-          paymentMethod =
-            typeof body.paymentOption === "object"
-              ? body.paymentOption.name || ""
-              : String(body.paymentOption);
-        }
+        // Receipt date (the payment date)
+        const fmtDate = (d: any) => {
+          const dt = new Date(d);
+          if (isNaN(dt.getTime())) return "";
+          const dd = String(dt.getDate()).padStart(2, "0");
+          const mm = String(dt.getMonth() + 1).padStart(2, "0");
+          return `${dd}-${mm}-${dt.getFullYear()}`;
+        };
+        const receiptDate = fmtDate(
+          feeDoc?.amountDate ||
+            feeDoc?.paymentDate ||
+            body.amountDate ||
+            feeDoc?.createdAt ||
+            new Date(),
+        );
 
         // Resolve company (logo, address, contact, GST)
         const companyId = normalizeCompanyId(
@@ -7024,7 +7021,7 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
           ${infoRow("Father Name", fatherName)}
           ${infoRow("Roll Number", String(rollNumber))}
           ${infoRow("Course Name", courseName)}
-          ${infoRow("Payment Method", paymentMethod)}
+          ${infoRow("Receipt Date", receiptDate)}
         </table>
       </td>
     </tr>
