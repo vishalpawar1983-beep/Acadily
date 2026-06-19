@@ -6963,10 +6963,24 @@ ${paymentOption ? `<div class="detail"><strong>Payment Mode:</strong> ${paymentO
               }) as Record<string, string>)[c] || c,
           );
 
+        // Build an absolute base URL from the incoming (nginx-proxied) request so the
+        // logo resolves to the real public host (e.g. https://app.acadily.com). We avoid
+        // config.BACKEND_URL here because it is unset in prod (defaults to localhost) and
+        // also drives payment-gateway callback URLs — changing it would affect payments.
+        const fwdProto = String(req.headers["x-forwarded-proto"] || "")
+          .split(",")[0]
+          .trim();
+        const fwdHost = String(
+          req.headers["x-forwarded-host"] || req.headers.host || "",
+        )
+          .split(",")[0]
+          .trim();
+        const baseUrl = fwdHost
+          ? `${fwdProto || "https"}://${fwdHost}`
+          : config.BACKEND_URL;
+
         const logoUrl = company?.logo
-          ? `${config.BACKEND_URL}/api/images/${encodeURIComponent(
-              String(company.logo),
-            )}`
+          ? `${baseUrl}/api/images/${encodeURIComponent(String(company.logo))}`
           : "";
         const companyName = company?.companyName || "";
         const companyAddress = company?.companyAddress || "";
